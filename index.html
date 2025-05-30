@@ -276,7 +276,7 @@
     (function() {
         // --- CONSTANTS ---
         const POS_TAGS = {
-              "N": "Noun (คำนาม)", "PROP_N": "Proper Noun (วิสามัญนาม)", "V": "Verb (คำกริยา)","Vi": "Intransitive Verb (คำอกรรมกริยา)", "Vt": "Transitive Verb (คำสกรรมกริยา)", "ADJ": "Adjective (คำคุณศัพท์)", 
+            "N": "Noun (คำนาม)", "PROP_N": "Proper Noun (วิสามัญนาม)", "V": "Verb (คำกริยา)","Vi": "Intransitive Verb (คำอกรรมกริยา)", "Vt": "Transitive Verb (คำสกรรมกริยา)", "ADJ": "Adjective (คำคุณศัพท์)", 
             "ADV": "Adverb (คำวิเศษณ์)", "PREP": "Preposition (คำบุพบท)", "CONJ": "Conjunction (คำสันธาน)", 
             "PRON": "Pronoun (คำสรรพนาม)", "ART": "Article (คำนำหน้านาม)", "PART": "Particle (คำอนุภาค)", "It": "Inflection (คำผัน)", 
             "NUM": "Numeral (คำบอกจำนวน)", "INTJ": "Interjection (คำอุทาน)", "AUX": "Auxiliary Verb (กริยานุเคราะห์)",
@@ -356,6 +356,8 @@
         const navInterlinearDisplay = document.getElementById('nav-interlinear-display');
         const navImportExport = document.getElementById('nav-import-export');
         const navSentenceCategories = document.getElementById('nav-sentence-categories');
+        // const navAutoGenerate = document.getElementById('nav-auto-generate'); // Assuming these might not exist
+        // const navLinguisticNotes = document.getElementById('nav-linguistic-notes'); // Assuming these might not exist
 
         const interlinearDisplayView = document.getElementById('interlinear-display-view'); 
         const importExportView = document.getElementById('import-export-view'); 
@@ -370,6 +372,7 @@
         const viewControllingNavButtons = [
             navSentenceManagement, navSearchFilter, navStructureAnalysis, 
             navInterlinearDisplay, navImportExport, navSentenceCategories, 
+            // navAutoGenerate, navLinguisticNotes // Commented out if not present
         ].filter(btn => btn != null);
 
         const mainViewPanels = [
@@ -384,6 +387,8 @@
             'nav-interlinear-display': { viewId: 'interlinear-display-view', title: 'แสดงผล Interlinear', onShow: renderFullInterlinearList },
             'nav-import-export': { viewId: 'import-export-view', title: 'นำเข้า/ส่งออก' },
             'nav-sentence-categories': { viewId: 'sentence-management', title: 'หมวดหมู่ประโยค', onShow: renderSentences }, 
+            // 'nav-auto-generate': { viewId: 'sentence-management', title: 'สร้างประโยคอัตโนมัติ', onShow: renderSentences }, 
+            // 'nav-linguistic-notes': { viewId: 'sentence-management', title: 'หมายเหตุทางภาษาศาสตร์', onShow: renderSentences } 
         };
 
         // --- INITIALIZATION ---
@@ -719,15 +724,13 @@
                 sentenceEl.className = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition sentence-item';
                 sentenceEl.dataset.id = sentence.id;
 
-                const glossHTML = sentence.gloss.map(g => {
-                    const posDisplay = g.pos ? (POS_TAGS[g.pos] || g.pos) : ''; // Get full Thai name, fallback to tag if not found
-                    return `
+                const glossHTML = sentence.gloss.map(g => `
                     <div class="interlinear-item">
                         <div class="interlinear-word" data-word="${g.word}">${g.word}</div>
-                        ${posDisplay ? `<div class="interlinear-pos" title="${g.pos}">${posDisplay}</div>` : ''}
+                        ${g.pos ? `<div class="interlinear-pos">${POS_TAGS[g.pos] ? POS_TAGS[g.pos].split(' ')[0] : g.pos}</div>` : ''}
                         <div class="interlinear-gloss">${g.gloss}</div>
                     </div>
-                `}).join('');
+                `).join('');
 
                 let favoriteIconClass = sentence.isFavorite ? "text-yellow-500" : "text-gray-500 hover:text-yellow-500";
                 let favoriteIconFill = sentence.isFavorite ? "currentColor" : "none";
@@ -785,7 +788,7 @@
                 const glossHTML = sentence.gloss.map(g => `
                     <div class="interlinear-item">
                         <div class="interlinear-word" data-word="${g.word}">${g.word}</div>
-                        ${g.pos ? `<div class="interlinear-pos" title="${g.pos}">${POS_TAGS[g.pos] ? POS_TAGS[g.pos].split('(')[0].trim() : g.pos}</div>` : ''}
+                        ${g.pos ? `<div class="interlinear-pos">${POS_TAGS[g.pos] ? POS_TAGS[g.pos].split(' ')[0] : g.pos}</div>` : ''}
                         <div class="interlinear-gloss">${g.gloss}</div>
                     </div>
                 `).join('');
@@ -1086,7 +1089,7 @@
             } else {
                  wordDetailTitle.textContent = `รายละเอียดคำ: ${appState.editingWordKeyInModal}`;
                  if (isAdmin) {
-                    let posOptions = '<option value="">เลือกประเภท</option>'; // Default empty option
+                    let posOptions = '';
                     for (const [tag, name] of Object.entries(POS_TAGS)) {
                         posOptions += `<option value="${tag}">${name}</option>`;
                     }
@@ -1117,7 +1120,7 @@
                     wordDetailContent.innerHTML = `<p>ไม่พบข้อมูลสำหรับคำว่า "${appState.editingWordKeyInModal}" ในฐานข้อมูลคำศัพท์</p>`;
                  }
             }
-            updateAdminUI(); 
+            updateAdminUI(); // Ensures save button visibility if modal was already open during role change
             wordDetailModal.classList.remove('hidden');
         }
 
@@ -1143,11 +1146,9 @@
                 notes: newNotes
             };
 
-            const originalWordExistsInVocab = appState.vocabulary.hasOwnProperty(originalWordKey);
-
             // Check if the word key itself is being changed
             if (editedWordValue !== originalWordKey) {
-                // If new key already exists
+                // If new key already exists (and it's not the original key being re-saved with same name)
                 if (appState.vocabulary.hasOwnProperty(editedWordValue)) {
                     alert(`คำว่า "${editedWordValue}" มีอยู่ในฐานข้อมูลแล้ว ไม่สามารถเปลี่ยนชื่อทับได้`);
                     return;
@@ -1155,10 +1156,10 @@
                 // Create new entry
                 appState.vocabulary[editedWordValue] = newVocabEntry;
                 // Delete old entry if it existed
-                if(originalWordExistsInVocab) {
+                if(appState.vocabulary.hasOwnProperty(originalWordKey)) {
                     delete appState.vocabulary[originalWordKey];
                 }
-                // Update all sentences' gloss entries
+                // Update all sentences
                 appState.sentences.forEach(sentence => {
                     sentence.gloss.forEach(g => {
                         if (g.word === originalWordKey) {
@@ -1166,22 +1167,18 @@
                         }
                     });
                 });
-                appState.editingWordKeyInModal = editedWordValue; 
-                wordDetailTitle.textContent = `รายละเอียดคำ: ${editedWordValue}`;
-                alert(`คำศัพท์ "${originalWordKey}" ถูกเปลี่ยนชื่อเป็น "${editedWordValue}" และอัปเดตในประโยคที่เกี่ยวข้องแล้ว`);
+                appState.editingWordKeyInModal = editedWordValue; // Update the key being edited for consistency if modal stays open
+                 wordDetailTitle.textContent = `รายละเอียดคำ: ${editedWordValue}`;
 
-            } else { // Word key is the same, just update properties (or add if it was a new word)
+            } else { // Word key is the same, just update properties
                 appState.vocabulary[originalWordKey] = newVocabEntry;
-                if (originalWordExistsInVocab) {
-                    alert(`รายละเอียดคำศัพท์ "${originalWordKey}" ถูกบันทึกแล้ว`);
-                } else {
-                    alert(`คำศัพท์ใหม่ "${originalWordKey}" ถูกเพิ่มและบันทึกแล้ว`);
-                }
             }
 
             saveDataToLocalStorage();
+            alert("บันทึกรายละเอียดคำศัพท์แล้ว");
             closeWordDetailModal();
 
+            // Re-render current view to reflect potential changes in gloss words
             const currentViewPanelId = mainViewPanels.find(p => p && p.style.display === 'block')?.id;
             if (currentViewPanelId) {
                 const activeNavEntry = Object.entries(viewMappings).find(([navId, map]) => map.viewId === currentViewPanelId);
@@ -1219,7 +1216,7 @@
                     S_core = sentence.gloss[0]?.word || ""; 
                     V_core = sentence.gloss[1]?.word || ""; 
                     O_core = sentence.gloss.slice(2).map(g=>g.word).join(" ") || "";
-                } 
+                } else { /* More complex default filling could be added here for other structures */ }
             }
             
             const sCoreDisplay = isAdmin ? `<input type="text" id="modal-analysis-subjectCore" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${S_core}">` : `<div class="font-medium">${S_core || 'N/A'}</div>`;
@@ -1317,7 +1314,7 @@
                 renderStructureAnalysisTable();
             }
              if (sentenceManagementView.style.display === 'block') {
-                renderSentences(); 
+                renderSentences(); // Re-render sentence list if any details changed affect it
             }
         }
         
@@ -1358,10 +1355,12 @@
 
             paginatedSentences.forEach(sentence => {
                 const row = structureAnalysisTableBody.insertRow();
-                row.dataset.id = sentence.id; 
+                row.dataset.id = sentence.id; // Keep sentence ID on row for reference
                 
+                // Ensure customAnalysis exists and has all fields
                 const analysis = sentence.customAnalysis || { subjectCore: '', subjectModifier: '', verbCore: '', verbAuxiliary: '', verbModifier: '', objectCore: '', objectModifier: '', tense: '' };
 
+                // Helper to create cell with editable input or static text
                 const createCell = (value, fieldName, inputType = 'text', options = null, widthClass = 'table-cell-input-medium') => {
                     const cell = row.insertCell();
                     cell.classList.add("px-2", "py-1", "whitespace-nowrap");
@@ -1383,14 +1382,14 @@
                             inputElement.type = 'text'; inputElement.value = value;
                             inputElement.className = `w-full border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs ${widthClass}`;
                             inputElement.placeholder = fieldName.includes('vithyophas') || fieldName.includes('thai') ? '' : fieldName.charAt(0).toUpperCase();
-                             inputElement.addEventListener('change', (e) => handleStructureAnalysisFieldChange(sentence.id, fieldName, e.target.value));
+                             inputElement.addEventListener('change', (e) => handleStructureAnalysisFieldChange(sentence.id, fieldName, e.target.value)); // Changed to 'change' for better UX
                         }
                         cell.appendChild(inputElement);
                     } else {
                         cell.textContent = value || '-';
                         if (fieldName === 'vithyophasSentence' || fieldName === 'thaiTranslation') {
                              cell.classList.add("truncate");
-                             cell.style.maxWidth = "150px"; 
+                             cell.style.maxWidth = "150px"; // Or use Tailwind class like max-w-xs
                         }
                     }
                     return cell;
@@ -1428,12 +1427,13 @@
             } else if (field === 'structure') {
                 sentence.structure = value;
             } else if (['subjectCore', 'subjectModifier', 'verbCore', 'verbAuxiliary', 'verbModifier', 'objectCore', 'objectModifier', 'tense'].includes(field)) {
-                if (!sentence.customAnalysis) { 
+                if (!sentence.customAnalysis) { // Should already be initialized by loadData or sentence creation
                     sentence.customAnalysis = { subjectCore: '', subjectModifier: '', verbCore: '', verbAuxiliary: '', verbModifier: '', objectCore: '', objectModifier: '', tense: '' };
                 }
                 sentence.customAnalysis[field] = value.trim();
             }
             saveDataToLocalStorage();
+             // No immediate re-render here, rely on 'change' event and overall table re-render on pagination/filter
         }
 
 
@@ -1555,7 +1555,7 @@
                         const currentNavButtonEntry = Object.entries(viewMappings).find(([navId, map]) => map.viewId === currentViewId);
                         if (currentNavButtonEntry && viewMappings[currentNavButtonEntry[0]].onShow) {
                              viewMappings[currentNavButtonEntry[0]].onShow();
-                        } else { renderSentences(); } 
+                        } else { renderSentences(); } // Default fallback
                         alert("นำเข้าข้อมูลสำเร็จแล้ว!");
                     }
                 } catch (e) { alert("เกิดข้อผิดพลาดในการอ่านไฟล์ JSON: " + e.message); }
