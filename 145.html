@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการประโยคภาษาวิทโยภาษ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --primary-dark: #7c3aed;
+            --primary-light: #a78bfa;
+            --secondary: #f3e8ff;
+            --accent: #c4b5fd;
+        }
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: #f9fafb;
+        }
+        .purple-gradient {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+        }
+        .tree-diagram { position: relative; padding: 20px; }
+        .tree-node { display: flex; flex-direction: column; align-items: center; }
+        .tree-children { display: flex; justify-content: center; }
+        .tree-branch { position: relative; width: 2px; height: 20px; background-color: #8b5cf6; margin: 0 auto; }
+        
+        .tooltip-static {
+            position: relative;
+            display: inline-block;
+            border-bottom: 1px dotted var(--primary);
+            cursor: pointer;
+        }
+        .tooltip-static .tooltiptext {
+            visibility: hidden; width: 220px; background-color: white; color: #333; text-align: left;
+            border-radius: 6px; padding: 10px; position: absolute; z-index: 100; bottom: 125%;
+            left: 50%; margin-left: -110px; opacity: 0; transition: opacity 0.3s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            font-size: 0.9rem;
+        }
+        .tooltip-static:hover .tooltiptext { visibility: visible; opacity: 1; }
+
+        .tab-active { border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: 500; }
+        .interlinear { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, max-content)); gap: 10px; align-items: start; margin: 15px 0; }
+        .interlinear-item { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .interlinear-word { font-weight: 500; cursor: pointer; color: var(--primary-dark); }
+        .interlinear-pos { font-size: 0.7rem; color: #6b7280; font-style: italic; }
+        .interlinear-gloss { font-size: 0.8rem; color: #4b5563; }
+
+        .dark-mode { background-color: #1f2937; color: #f9fafb; }
+        .dark-mode .bg-white { background-color: #374151 !important; }
+        .dark-mode .text-gray-700, .dark-mode .text-gray-800, .dark-mode .text-gray-600, .dark-mode .text-gray-500 { color: #e5e7eb !important; }
+        .dark-mode .border-gray-200, .dark-mode .border-gray-300 { border-color: #4b5563 !important; }
+        .dark-mode input, .dark-mode select, .dark-mode textarea { background-color: #4b5563; color: #f9fafb; border-color: #6b7280; }
+        .dark-mode .tooltiptext { background-color: #374151; color: #f9fafb; }
+        .dark-mode .bg-purple-100 { background-color: #5b21b6 !important; }
+        .dark-mode .text-purple-800 { color: #f5d0fe !important; }
+        .dark-mode .bg-blue-100 { background-color: #1e40af !important; }
+        .dark-mode .text-blue-800 { color: #bfdbfe !important; }
+        .dark-mode .bg-green-100 { background-color: #065f46 !important; }
+        .dark-mode .text-green-800 { color: #a7f3d0 !important; }
+        .dark-mode .hover\:bg-purple-50:hover { background-color: #4c1d95 !important; }
+        .dark-mode .tab-active { color: var(--primary-light) !important; border-bottom-color: var(--primary-light) !important; }
+        .dark-mode .hover\:text-purple-600:hover { color: var(--primary-light) !important; }
+        .dark-mode .interlinear-pos { color: #9ca3af; }
+
+
+        #word-detail-modal .modal-content {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .admin-only { display: none; } 
+        .table-cell-editable input, .table-cell-editable select {
+            width: 100%;
+            padding: 4px 6px;
+            font-size: 0.875rem; /* text-sm */
+            border: 1px solid #d1d5db; /* Tailwind gray-300 */
+            border-radius: 0.25rem; /* rounded-md */
+        }
+        .dark-mode .table-cell-editable input, .dark-mode .table-cell-editable select {
+            border-color: #6b7280; /* Tailwind gray-500 for dark mode */
+            background-color: #4b5563;
+            color: #f9fafb;
+        }
+        .table-cell-input-short { max-width: 100px; }
+        .table-cell-input-medium { max-width: 150px; }
+        .table-cell-input-wide { max-width: 200px; }
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .word-detail-form-row { margin-bottom: 0.75rem; }
+        .word-detail-form-row label { display: block; font-weight: 500; margin-bottom: 0.25rem; font-size: 0.9rem;}
+        .word-detail-form-row input, .word-detail-form-row select, .word-detail-form-row textarea { width: 100%; padding: 0.5rem; border-radius: 0.25rem; border: 1px solid #d1d5db;}
+        .dark-mode .word-detail-form-row input, .dark-mode .word-detail-form-row select, .dark-mode .word-detail-form-row textarea { border-color: #6b7280; background-color: #4b5563; color: #f9fafb; }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="purple-gradient text-white shadow-lg">
+            <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <span class="text-3xl">📋</span>
+                    <h1 class="text-2xl font-bold">ระบบประโยคภาษาวิทโยภาษ</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="theme-toggle" class="p-2 rounded-full hover:bg-purple-700 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                    </button>
+                    <div class="relative">
+                        <button id="user-menu" class="flex items-center space-x-1 focus:outline-none">
+                            <span id="user-role-display">ผู้เยี่ยมชม</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20">
+                            <a href="#" id="login-btn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-purple-100">เข้าสู่ระบบ</a>
+                            <a href="#" id="logout-btn" class="hidden block px-4 py-2 text-sm text-gray-700 hover:bg-purple-100">ออกจากระบบ</a>
+                            <a href="#" class="admin-only block px-4 py-2 text-sm text-gray-700 hover:bg-purple-100">โปรไฟล์</a>
+                            <a href="#" class="admin-only block px-4 py-2 text-sm text-gray-700 hover:bg-purple-100">ตั้งค่า</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow container mx-auto px-4 py-6">
+            <div class="flex flex-col md:flex-row gap-6">
+                <!-- Sidebar -->
+                <div class="w-full md:w-64 bg-white rounded-lg shadow-md p-4">
+                    <nav class="space-y-2">
+                        <button id="nav-sentence-management" class="nav-item flex items-center space-x-2 w-full p-3 rounded-md bg-purple-100 text-purple-800 font-medium">
+                            <span class="text-xl">🔤</span>
+                            <span>จัดการประโยค</span>
+                        </button>
+                         <button id="nav-search-filter" class="nav-item flex items-center space-x-2 w-full p-3 rounded-md hover:bg-purple-50 text-gray-700">
+                            <span class="text-xl">🔍</span>
+                            <span>ค้นหา/กรองประโยค</span>
+                        </button>
+                        <button id="nav-structure-analysis" class="nav-item flex items-center space-x-2 w-full p-3 rounded-md hover:bg-purple-50 text-gray-700">
+                            <span class="text-xl">📊</span>
+                            <span>วิเคราะห์โครงสร้าง</span>
+                        </button>
+                        <button id="nav-interlinear-display" class="nav-item flex items-center space-x-2 w-full p-3 rounded-md hover:bg-purple-50 text-gray-700">
+                            <span class="text-xl">🌐</span>
+                            <span>แสดงผล Interlinear</span>
+                        </button>
+                        <button id="nav-sentence-categories" class="nav-item flex items-center space-x-2 w-full p-3 rounded-md hover:bg-purple-50 text-gray-700">
+                            <span class="text-xl">🗃️</span>
+                            <span>หมวดหมู่ประโยค</span>
+                        </button>
+                        <button id="nav-import-export" class="nav-item flex items-center space-x-2 w-full p-3 rounded-md hover:bg-purple-50 text-gray-700 admin-only">
+                            <span class="text-xl">📥</span>
+                            <span>นำเข้า/ส่งออก</span>                        
+                    </nav>
+                </div>
+
+                <!-- Content Area -->
+                <div class="flex-grow">
+                    <div id="sentence-management" class="main-view bg-white rounded-lg shadow-md p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-2xl font-semibold text-gray-800">จัดการประโยค</h2>
+                            <button id="add-sentence-btn" class="admin-only bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                                </svg>
+                                เพิ่มประโยคใหม่
+                            </button>
+                        </div>
+                        <div id="total-sentence-count-main" class="text-sm text-gray-600 mb-4"></div>
+                        <div class="border-b border-gray-200 mb-6">
+                            <div class="flex space-x-8">
+                                <button class="tab-active py-2 px-1">ประโยคทั้งหมด</button>
+                                <button class="text-gray-500 hover:text-purple-600 py-2 px-1">รายการโปรด</button>
+                            </div>
+                        </div>
+                        <div class="mb-6">
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <div class="flex-grow">
+                                    <div class="relative">
+                                        <input type="text" id="search-input" placeholder="ค้นหาประโยค (ภาษาวิทโย, ไทย, gloss)..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <select id="filter-structure" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                        <option value="">โครงสร้างทั้งหมด</option>
+                                        <option value="SVO">SVO</option> <option value="VSO">VSO</option> <option value="SOV">SOV</option> <option value="OSV">OSV</option>
+                                        <option value="VOS">VOS</option> <option value="OVS">OVS</option> <option value="อื่นๆ">อื่นๆ</option>
+                                    </select>
+                                    <select id="filter-category" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                        <!-- Categories will be populated by JS -->
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="sentences-list-container" class="space-y-4"></div>
+                        <div id="pagination-container" class="mt-6 flex justify-between items-center"></div>
+                    </div>
+
+                   <div id="structure-analysis-view" class="main-view bg-white rounded-lg shadow-md p-6" style="display: none;">
+                        <h2 class="text-2xl font-semibold text-gray-800 mb-4">ตารางวิเคราะห์โครงสร้างประโยค (ภาพรวม)</h2>
+                        <div id="total-sentence-count-analysis" class="text-sm text-gray-600 mb-4"></div>
+                        <div class="mb-4">
+                             <input type="text" id="structure-analysis-search-input" placeholder="ค้นหาในตารางวิเคราะห์ (ภาษาวิทโย, ไทย)..." class="w-full md:w-1/2 pl-4 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+                        <div class="overflow-x-auto mb-4">
+                            <table id="structure-analysis-table" class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th rowspan="2" class="px-2 py-2 align-bottom font-medium text-gray-500 dark:text-gray-300 tracking-wider text-left">ภาษาวิทโย</th>
+                                        <th rowspan="2" class="px-2 py-2 align-bottom font-medium text-gray-500 dark:text-gray-300 tracking-wider text-left">แปลไทย</th>
+                                        <th rowspan="2" class="px-2 py-2 align-bottom font-medium text-gray-500 dark:text-gray-300 tracking-wider text-left">โครงสร้าง</th>
+                                        <th colspan="2" class="px-2 py-1 group-header font-medium text-gray-600 dark:text-gray-200 tracking-wider text-center border-l border-gray-200 dark:border-gray-600">ประธาน (Subject)</th>
+                                        <th colspan="3" class="px-2 py-1 group-header font-medium text-gray-600 dark:text-gray-200 tracking-wider text-center border-l border-gray-200 dark:border-gray-600">กริยา (Verb)</th>
+                                        <th colspan="2" class="px-2 py-1 group-header font-medium text-gray-600 dark:text-gray-200 tracking-wider text-center border-l border-gray-200 dark:border-gray-600">กรรม (Object)</th>
+                                        <th rowspan="2" class="px-2 py-2 align-bottom font-medium text-gray-500 dark:text-gray-300 tracking-wider text-left border-l border-gray-200 dark:border-gray-600">กาล (Tense)</th>
+                                    </tr>
+                                    <tr>
+                                        <th class="px-2 py-1 sub-header font-medium text-gray-500 dark:text-gray-400 tracking-wider text-left border-l border-gray-200 dark:border-gray-600">แกนหลัก</th>
+                                        <th class="px-2 py-1 sub-header font-medium text-gray-500 dark:text-gray-400 tracking-wider text-left">ขยาย</th>
+                                        <th class="px-2 py-1 sub-header font-medium text-gray-500 dark:text-gray-400 tracking-wider text-left border-l border-gray-200 dark:border-gray-600">แกนหลัก</th>
+                                        <th class="px-2 py-1 sub-header font-medium text-gray-500 dark:text-gray-400 tracking-wider text-left">ช่วย</th>
+                                        <th class="px-2 py-1 sub-header font-medium text-gray-500 dark:text-gray-400 tracking-wider text-left">ขยาย</th>
+                                        <th class="px-2 py-1 sub-header font-medium text-gray-500 dark:text-gray-400 tracking-wider text-left border-l border-gray-200 dark:border-gray-600">แกนหลัก</th>
+                                        <th class="px-2 py-1 sub-header font-medium text-gray-500 dark:text-gray-400 tracking-wider text-left">ขยาย</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="structure-analysis-table-body" class="bg-white divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+                            </table>
+                        </div>
+                        <div id="structure-analysis-pagination-container" class="mt-6 flex justify-between items-center"></div>
+                    </div>
+
+                    <div id="interlinear-display-view" class="main-view bg-white rounded-lg shadow-md p-6" style="display: none;"><h2 class="text-2xl font-semibold text-gray-800 mb-6">แสดงผล Interlinear (ภาพรวม)</h2><div id="full-interlinear-list" class="mt-4 space-y-4"></div></div>
+                    <div id="import-export-view" class="main-view admin-view-content bg-white rounded-lg shadow-md p-6" style="display: none;"><h2 class="text-2xl font-semibold text-gray-800 mb-6">นำเข้า/ส่งออกข้อมูล</h2><div class="space-y-4"><div><h3 class="text-lg font-medium text-gray-700 mb-2">ส่งออกข้อมูล</h3><button id="export-json-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md">ส่งออกเป็น JSON</button><button id="export-csv-btn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md">ส่งออกเป็น CSV</button></div><div><h3 class="text-lg font-medium text-gray-700 mb-2">นำเข้าข้อมูล</h3><label for="import-file-input" class="block text-sm font-medium text-gray-700">นำเข้าไฟล์ JSON</label><input type="file" id="import-file-input" accept=".json" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"/><button id="import-data-btn" class="mt-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md">เริ่มการนำเข้า</button></div></div></div>
+                </div>
+            </div>
+        </main>
+
+      <!-- Modals: Add/Edit, Per-Sentence Structure, Translation Test, Word Detail -->
+        <div id="add-sentence-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"> <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6"><div class="flex justify-between items-center mb-6"><h2 id="modal-title" class="text-2xl font-semibold text-gray-800 dark:text-gray-200">เพิ่มประโยคใหม่</h2><button id="close-modal-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div><form id="sentence-form" class="space-y-6"><input type="hidden" id="sentence-id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">ประโยคในภาษาวิทโย</label><input type="text" id="vithyophas-sentence" class="w-full border border-gray-300 rounded-md px-3 py-2" required></div><div><label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">คำแปลภาษาไทย</label><input type="text" id="thai-translation" class="w-full border border-gray-300 rounded-md px-3 py-2" required></div></div><div><label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">คำแปลแบบ Gloss</label><div id="gloss-entries-container" class="space-y-2"></div><button type="button" id="add-gloss-entry-btn" class="mt-2 bg-purple-100 text-purple-700 px-3 py-2 rounded-md hover:bg-purple-200 text-sm">เพิ่มคำ Gloss</button></div><div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div><label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">โครงสร้างไวยากรณ์</label><select id="grammar-structure" class="w-full border border-gray-300 rounded-md px-3 py-2"></select></div><div><label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">หมวดหมู่</label><select id="category" class="w-full border border-gray-300 rounded-md px-3 py-2"></select></div><div><label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">ภาษาถิ่น</label><select id="dialect" class="w-full border border-gray-300 rounded-md px-3 py-2"><option value="">ภาษาหลัก</option><option value="north">ถิ่นเหนือ</option><option value="south">ถิ่นใต้</option><option value="ancient">โบราณ</option></select></div></div><div><label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">หมายเหตุ</label><textarea id="linguistic-notes" class="w-full border border-gray-300 rounded-md px-3 py-2 h-24"></textarea></div><div class="flex justify-end space-x-3"><button type="button" id="cancel-sentence-form-btn" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">ยกเลิก</button><button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">บันทึก</button></div></form></div></div>
+        <div id="structure-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"><div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 modal-content"><div class="flex justify-between items-center mb-6"><h2 id="structure-modal-title-per-sentence" class="text-2xl font-semibold text-gray-800 dark:text-gray-200">วิเคราะห์โครงสร้าง (เฉพาะหน้า)</h2><button id="close-structure-modal-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div><div id="structure-modal-body"></div><div id="structure-modal-actions" class="flex justify-end mt-6 space-x-3"><button type="button" id="save-analysis-btn-modal" class="admin-only px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">บันทึกการวิเคราะห์</button><button type="button" id="structure-modal-close-action-btn" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">ปิด</button></div></div></div>
+        <div id="translation-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"><div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 modal-content"><div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">ทดสอบแปลกลับ</h2><button id="close-translation-modal-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div><div id="translation-modal-body"></div><div class="flex justify-end space-x-3 mt-6"><button type="button" id="translation-modal-retry-btn" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">ลองอีกครั้ง</button><button type="button" id="translation-modal-close-action-btn" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">ปิด</button></div></div></div>
+        
+        <div id="word-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] hidden">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[80vh] p-6 modal-content">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="word-detail-title" class="text-xl font-semibold text-gray-800 dark:text-gray-200">รายละเอียดคำศัพท์</h2>
+                    <button id="close-word-detail-modal-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div id="word-detail-content" class="text-sm text-gray-700 dark:text-gray-300">
+                    <!-- Content will be populated by JS -->
+                </div>
+                <div class="flex justify-end mt-6 space-x-3">
+                    <button type="button" id="save-word-detail-btn" class="admin-only px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">บันทึกการเปลี่ยนแปลงคำศัพท์</button>
+                    <button type="button" id="word-detail-modal-close-action-btn" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">ปิด</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // IIFE to encapsulate script
+    (function() {
+        // --- CONSTANTS ---
+        const POS_TAGS = {
+            "N": "คำนาม", "PROP_N": "วิสามัญนาม", "V": "คำกริยา","Vi": "คำอกรรมกริยา", "Vt": "คำสกรรมกริยา", "ADJ": "คำคุณศัพท์", 
+            "ADV": "คำวิเศษณ์", "PREP": "คำบุพบท", "CONJ": "คำสันธาน", 
+            "PRON": "คำสรรพนาม", "ART": "คำนำหน้านาม", "PART": "คำอนุภาค", "It": "คำผัน", 
+            "NUM": "คำบอกจำนวน", "INTJ": "คำอุทาน", "AUX": "กริยานุเคราะห์",
+            "DET": "คำบ่งชี้", "OTHER": "อื่นๆ"
+        };
+        const STRUCTURE_TYPES = ["SVO", "VSO", "SOV", "OSV", "VOS", "OVS", "อื่นๆ"];
+
+        // --- STATE ---
+        let appState = {
+            sentences: [],
+            vocabulary: { /* Default vocabulary */ },
+            availableCategories: ["ธรรมชาติ", "สัตว์", "การต่อสู้", "ชีวิตประจำวัน", "เทพนิยาย", "การเดินทาง", "อื่นๆ"],
+            currentUser: { role: 'guest' },
+            mainSentenceList: { currentPage: 1, itemsPerPage: 5 },
+            structureAnalysisTable: { currentPage: 1, itemsPerPage: 15, searchTerm: '' },
+            editingSentenceId: null,
+            analyzingSentenceIdInModal: null, 
+            editingWordKeyInModal: null,
+        };
+        
+        // --- DOM ELEMENTS ---
+        const themeToggle = document.getElementById('theme-toggle');
+        const userMenu = document.getElementById('user-menu');
+        const userDropdown = document.getElementById('user-dropdown');
+        const userRoleDisplay = document.getElementById('user-role-display');
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        
+        const addSentenceBtn = document.getElementById('add-sentence-btn');
+        const addSentenceModal = document.getElementById('add-sentence-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const cancelSentenceFormBtn = document.getElementById('cancel-sentence-form-btn');
+        const sentenceForm = document.getElementById('sentence-form');
+        const sentenceFormGrammarStructure = document.getElementById('grammar-structure');
+        const modalTitle = document.getElementById('modal-title');
+        const glossEntriesContainer = document.getElementById('gloss-entries-container');
+        const addGlossEntryBtn = document.getElementById('add-gloss-entry-btn');
+        const sentenceFormCategoryDropdown = document.getElementById('category');
+
+        const sentencesListContainer = document.getElementById('sentences-list-container');
+        const paginationContainer = document.getElementById('pagination-container');
+        const searchInput = document.getElementById('search-input');
+        const filterStructure = document.getElementById('filter-structure');
+        const filterCategoryDropdown = document.getElementById('filter-category');
+        const totalSentenceCountMainEl = document.getElementById('total-sentence-count-main');
+
+        const structureAnalysisView = document.getElementById('structure-analysis-view');
+        const structureAnalysisTableBody = document.getElementById('structure-analysis-table-body');
+        const structureAnalysisPaginationContainer = document.getElementById('structure-analysis-pagination-container');
+        const totalSentenceCountAnalysisEl = document.getElementById('total-sentence-count-analysis');
+        const structureAnalysisSearchInput = document.getElementById('structure-analysis-search-input');
+
+
+        const structureModal = document.getElementById('structure-modal'); 
+        const closeStructureModalBtn = document.getElementById('close-structure-modal-btn');
+        const structureModalBody = document.getElementById('structure-modal-body');
+        const structureModalCloseActionBtn = document.getElementById('structure-modal-close-action-btn');
+        const saveAnalysisBtnModal = document.getElementById('save-analysis-btn-modal');
+        
+        const translationModal = document.getElementById('translation-modal');
+        const closeTranslationModalBtn = document.getElementById('close-translation-modal-btn');
+        const translationModalBody = document.getElementById('translation-modal-body');
+        const translationModalRetryBtn = document.getElementById('translation-modal-retry-btn');
+        const translationModalCloseActionBtn = document.getElementById('translation-modal-close-action-btn');
+
+        const wordDetailModal = document.getElementById('word-detail-modal');
+        const closeWordDetailModalBtn = document.getElementById('close-word-detail-modal-btn');
+        const wordDetailTitle = document.getElementById('word-detail-title');
+        const wordDetailContent = document.getElementById('word-detail-content');
+        const wordDetailModalCloseActionBtn = document.getElementById('word-detail-modal-close-action-btn');
+        const saveWordDetailBtn = document.getElementById('save-word-detail-btn');
+
+
+        const navSentenceManagement = document.getElementById('nav-sentence-management');
+        const navSearchFilter = document.getElementById('nav-search-filter');
+        const navStructureAnalysis = document.getElementById('nav-structure-analysis');
+        const navInterlinearDisplay = document.getElementById('nav-interlinear-display');
+        const navImportExport = document.getElementById('nav-import-export');
+        const navSentenceCategories = document.getElementById('nav-sentence-categories');
+
+        const interlinearDisplayView = document.getElementById('interlinear-display-view'); 
+        const importExportView = document.getElementById('import-export-view'); 
+        const sentenceManagementView = document.getElementById('sentence-management');
+
+        const fullInterlinearListContainer = document.getElementById('full-interlinear-list');
+        const exportJsonBtn = document.getElementById('export-json-btn');
+        const exportCsvBtn = document.getElementById('export-csv-btn');
+        const importFileInput = document.getElementById('import-file-input');
+        const importDataBtn = document.getElementById('import-data-btn');
+
+        const viewControllingNavButtons = [
+            navSentenceManagement, navSearchFilter, navStructureAnalysis, 
+            navInterlinearDisplay, navImportExport, navSentenceCategories, 
+        ].filter(btn => btn != null);
+
+        const mainViewPanels = [
+            sentenceManagementView, structureAnalysisView, 
+            interlinearDisplayView, importExportView
+        ].filter(panel => panel != null);
+        
+        const viewMappings = {
+            'nav-sentence-management': { viewId: 'sentence-management', title: 'จัดการประโยค', onShow: renderSentences },
+            'nav-search-filter': { viewId: 'sentence-management', title: 'ค้นหา/กรองประโยค', focusSearch: true, onShow: renderSentences },
+            'nav-structure-analysis': { viewId: 'structure-analysis-view', title: 'วิเคราะห์โครงสร้าง', onShow: renderStructureAnalysisTable },
+            'nav-interlinear-display': { viewId: 'interlinear-display-view', title: 'แสดงผล Interlinear', onShow: renderFullInterlinearList },
+            'nav-import-export': { viewId: 'import-export-view', title: 'นำเข้า/ส่งออก' },
+            'nav-sentence-categories': { viewId: 'sentence-management', title: 'หมวดหมู่ประโยค', onShow: renderSentences }, 
+        };
+
+        // --- INITIALIZATION ---
+        function init() {
+            loadDataFromLocalStorage();
+            populateStructureDropdown(sentenceFormGrammarStructure);
+            checkLoginStatus(); 
+            populateCategoryDropdowns(filterCategoryDropdown);
+            populateCategoryDropdowns(sentenceFormCategoryDropdown);
+            setupEventListeners();
+            document.body.classList.toggle('dark-mode', localStorage.getItem('theme') === 'dark');
+            updateThemeIcon();
+            switchView('nav-sentence-management'); 
+        }
+
+        // --- TOTAL SENTENCE COUNT ---
+        function updateTotalSentenceCount() {
+            const count = appState.sentences.length;
+            const text = `จำนวนประโยคในระบบทั้งหมด: ${count} ประโยค`;
+            if (totalSentenceCountMainEl) totalSentenceCountMainEl.textContent = text;
+            if (totalSentenceCountAnalysisEl) totalSentenceCountAnalysisEl.textContent = text;
+        }
+        
+        // --- LOCAL STORAGE ---
+        function loadDataFromLocalStorage() {
+            const storedSentences = localStorage.getItem('vithyophasSentences');
+            if (storedSentences) {
+                appState.sentences = JSON.parse(storedSentences).map(s => {
+                    // Migrate old customAnalysis structure if necessary
+                    if (s.customAnalysis && (s.customAnalysis.subject !== undefined || s.customAnalysis.verb !== undefined || s.customAnalysis.object !== undefined)) {
+                        s.customAnalysis = {
+                            subjectCore: s.customAnalysis.subject || '',
+                            subjectModifier: s.customAnalysis.subjectModifier || '',
+                            verbCore: s.customAnalysis.verb || '',
+                            verbAuxiliary: s.customAnalysis.verbAuxiliary || '',
+                            verbModifier: s.customAnalysis.verbModifier || '',
+                            objectCore: s.customAnalysis.object || '',
+                            objectModifier: s.customAnalysis.objectModifier || '',
+                            tense: s.customAnalysis.tense || ''
+                        };
+                    } else if (!s.customAnalysis) {
+                         s.customAnalysis = { subjectCore: '', subjectModifier: '', verbCore: '', verbAuxiliary: '', verbModifier: '', objectCore: '', objectModifier: '', tense: '' };
+                    }
+                    // Ensure all new fields exist
+                    s.customAnalysis = {
+                        subjectCore: s.customAnalysis.subjectCore || '',
+                        subjectModifier: s.customAnalysis.subjectModifier || '',
+                        verbCore: s.customAnalysis.verbCore || '',
+                        verbAuxiliary: s.customAnalysis.verbAuxiliary || '',
+                        verbModifier: s.customAnalysis.verbModifier || '',
+                        objectCore: s.customAnalysis.objectCore || '',
+                        objectModifier: s.customAnalysis.objectModifier || '',
+                        tense: s.customAnalysis.tense || ''
+                    };
+                    return s;
+                });
+            } else { 
+                // Default sentences if none in local storage
+                appState.sentences = [
+                    { 
+                        id: 's1', vithyophas: "Zarak lo veynon kirta.", thai: "นักรบสังหารมังกร", structure: "SVO", category: "การต่อสู้", dialect: "", notes: "ประโยคตัวอย่างเริ่มต้น", 
+                        gloss: [
+                            {word: "Zarak", pos: "PROP_N", gloss: "warrior"}, {word: "lo", pos: "ART", gloss: "DEF"}, 
+                            {word: "veynon", pos: "N", gloss: "dragon"}, {word: "kirta", pos: "V", gloss: "slay.PRES"}
+                        ], 
+                        customAnalysis: { subjectCore: 'Zarak', subjectModifier: '', verbCore: 'kirta', verbAuxiliary: '', verbModifier: '', objectCore: 'lo veynon', objectModifier: '', tense: 'ปัจจุบัน' },
+                        isFavorite: false 
+                    },
+                    { 
+                        id: 's2', vithyophas: "Mira suntai lo haran nel vosa.", thai: "หญิงสาวจะเก็บดอกไม้ในป่า", structure: "SVO", category: "ธรรมชาติ", dialect: "", notes: "ประโยคตัวอย่างที่สอง", 
+                        gloss: [
+                            {word: "Mira", pos:"PROP_N", gloss: "woman"}, {word: "suntai", pos:"V", gloss: "collect.FUT"}, 
+                            {word: "lo", pos:"ART", gloss: "DEF"}, {word: "haran", pos:"N", gloss: "flower"}, 
+                            {word: "nel", pos:"PREP", gloss: "in"}, {word: "vosa", pos:"N", gloss: "forest"}
+                        ], 
+                        customAnalysis: { subjectCore: "Mira", subjectModifier: "", verbCore: "suntai", verbAuxiliary: "", verbModifier: "", objectCore: "lo haran", objectModifier: "nel vosa", tense: "อนาคต"}, 
+                        isFavorite: true 
+                    }
+                ];
+            }
+            appState.vocabulary = JSON.parse(localStorage.getItem('vithyophasVocabulary')) || {
+                "Zarak": { pos: "PROP_N", meaning: "นักรบ, ทหาร", notes: "คำนามเฉพาะ", conjugation: "ไม่มี" }, "lo": { pos: "ART", meaning: "คำนำหน้าที่ระบุความชัดเจน (DEF)", notes: "ใช้กับคำนามที่เฉพาะเจาะจง" }, "veynon": { pos: "N", meaning: "มังกร", notes: "รากศัพท์: vey (ไฟ) + non (สัตว์)" }, "kirta": { pos: "V", meaning: "ฆ่า, สังหาร", notes: "ปัจจุบันกาล", conjugation: "kirt (อดีต), kirtai (อนาคต)" }, "Mira": { pos: "PROP_N", meaning: "ผู้หญิง, หญิงสาว", notes: "คำนามเฉพาะ" }, "suntai": { pos: "V", meaning: "เก็บ, รวบรวม", notes: "อนาคตกาล (FUT)", conjugation: "sunt (อดีต)" }, "haran": { pos: "N", meaning: "ดอกไม้", notes: "รากศัพท์: har (สวย) + an (สิ่งของ)" }, "nel": { pos: "PREP", meaning: "ใน, ภายใน" }, "vosa": { pos: "N", meaning: "ป่า, พงไพร" }
+            };
+            appState.availableCategories = JSON.parse(localStorage.getItem('vithyophasCategories')) || ["ธรรมชาติ", "สัตว์", "การต่อสู้", "ชีวิตประจำวัน", "เทพนิยาย", "การเดินทาง", "อื่นๆ"];
+            
+            updateTotalSentenceCount(); 
+        }
+
+
+        function saveDataToLocalStorage() {
+            localStorage.setItem('vithyophasSentences', JSON.stringify(appState.sentences));
+            localStorage.setItem('vithyophasVocabulary', JSON.stringify(appState.vocabulary)); 
+            localStorage.setItem('vithyophasCategories', JSON.stringify(appState.availableCategories));
+            updateTotalSentenceCount(); 
+        }
+
+        // --- DROPDOWN POPULATION ---
+        function populateStructureDropdown(selectElement) {
+            if (!selectElement) return;
+            selectElement.innerHTML = ''; 
+            STRUCTURE_TYPES.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                selectElement.appendChild(option);
+            });
+        }
+
+        function populateCategoryDropdowns(selectElement, selectedValue = null) {
+            if (!selectElement) return;
+            const currentVal = selectedValue || selectElement.value; 
+            
+            if(selectElement.id === 'filter-category') {
+                 selectElement.innerHTML = '<option value="">หมวดหมู่ทั้งหมด</option>';
+            } else { 
+                 selectElement.innerHTML = '<option value="">เลือกหมวดหมู่</option>';
+            }
+
+            appState.availableCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                selectElement.appendChild(option);
+            });
+            
+            if(selectElement.id === 'category' && appState.currentUser.role === 'admin') {
+                const addNewOption = document.createElement('option');
+                addNewOption.value = "_add_new_";
+                addNewOption.textContent = "เพิ่มหมวดหมู่ใหม่...";
+                selectElement.appendChild(addNewOption);
+            }
+            selectElement.value = currentVal; 
+        }
+
+        function handleAddNewCategory(event) {
+            const selectElement = event.target;
+            if (selectElement.value === '_add_new_') {
+                const newCategoryName = prompt("ป้อนชื่อหมวดหมู่ใหม่:");
+                if (newCategoryName && newCategoryName.trim() !== "") {
+                    const trimmedName = newCategoryName.trim();
+                    if (!appState.availableCategories.includes(trimmedName)) {
+                        appState.availableCategories.push(trimmedName);
+                        appState.availableCategories.sort(); 
+                        saveDataToLocalStorage();
+                        populateCategoryDropdowns(filterCategoryDropdown);
+                        populateCategoryDropdowns(sentenceFormCategoryDropdown, trimmedName); 
+                    } else {
+                        alert("หมวดหมู่นี้มีอยู่แล้ว");
+                        selectElement.value = trimmedName; 
+                    }
+                } else {
+                    selectElement.value = ""; 
+                }
+            }
+        }
+
+        // --- VIEW SWITCHING ---
+        function switchView(activeNavButtonId) {
+            const mapping = viewMappings[activeNavButtonId];
+            if (!mapping) {
+                 viewControllingNavButtons.forEach(button => {
+                    if (button) {
+                        button.classList.remove('bg-purple-100', 'text-purple-800', 'font-medium');
+                        button.classList.add('hover:bg-purple-50', 'text-gray-700');
+                    }
+                });
+                const clickedButton = document.getElementById(activeNavButtonId);
+                if(clickedButton) {
+                    clickedButton.classList.add('bg-purple-100', 'text-purple-800', 'font-medium');
+                    clickedButton.classList.remove('hover:bg-purple-50', 'text-gray-700');
+                }
+                return;
+            }
+            const targetViewId = mapping.viewId;
+
+            mainViewPanels.forEach(panel => {
+                if (panel) panel.style.display = 'none';
+            });
+
+            const targetViewPanel = document.getElementById(targetViewId);
+            if (targetViewPanel) {
+                targetViewPanel.style.display = 'block';
+                if (mapping.onShow) { 
+                    mapping.onShow();
+                }
+            }
+
+            viewControllingNavButtons.forEach(button => {
+                if (button) {
+                    button.classList.remove('bg-purple-100', 'text-purple-800', 'font-medium');
+                    button.classList.add('hover:bg-purple-50', 'text-gray-700');
+                }
+            });
+            
+            const activeButton = document.getElementById(activeNavButtonId);
+            if (activeButton) {
+                activeButton.classList.add('bg-purple-100', 'text-purple-800', 'font-medium');
+                activeButton.classList.remove('hover:bg-purple-50', 'text-gray-700');
+            }
+
+            if (mapping.focusSearch && searchInput) {
+                searchInput.focus();
+            }
+            
+            if (appState.currentUser.role !== 'admin' && targetViewPanel && targetViewPanel.classList.contains('admin-view-content')) {
+                switchView('nav-sentence-management'); 
+            }
+        }
+
+        // --- AUTHENTICATION & UI UPDATES ---
+        function checkLoginStatus() {
+            const loggedInUser = sessionStorage.getItem('vithyophasUser');
+            if (loggedInUser === 'admin') {
+                appState.currentUser.role = 'admin';
+                userRoleDisplay.textContent = 'ผู้ดูแลระบบ';
+                loginBtn.classList.add('hidden');
+                logoutBtn.classList.remove('hidden');
+            } else {
+                appState.currentUser.role = 'guest';
+                userRoleDisplay.textContent = 'ผู้เยี่ยมชม';
+                loginBtn.classList.remove('hidden');
+                logoutBtn.classList.add('hidden');
+            }
+            updateAdminUI();
+            populateCategoryDropdowns(sentenceFormCategoryDropdown, sentenceFormCategoryDropdown.value);
+
+            const currentViewPanel = mainViewPanels.find(panel => panel && (panel.style.display === 'block' || panel.style.display === ''));
+            if (appState.currentUser.role !== 'admin' && currentViewPanel && currentViewPanel.classList.contains('admin-view-content')) {
+                let activeAdminNavButtonId = null;
+                for (const navId in viewMappings) {
+                    if (viewMappings[navId].viewId === currentViewPanel.id) { activeAdminNavButtonId = navId; break; }
+                }
+                switchView('nav-sentence-management');
+                if(activeAdminNavButtonId && document.getElementById(activeAdminNavButtonId)){
+                    const adminButton = document.getElementById(activeAdminNavButtonId);
+                    adminButton.classList.remove('bg-purple-100', 'text-purple-800', 'font-medium');
+                    adminButton.classList.add('hover:bg-purple-50', 'text-gray-700');
+                }
+            }
+            if (structureAnalysisView && structureAnalysisView.style.display === 'block') {
+                renderStructureAnalysisTable(); 
+            }
+             if (wordDetailModal && !wordDetailModal.classList.contains('hidden') && appState.editingWordKeyInModal) {
+                showWordDetailPopup(appState.editingWordKeyInModal); // Re-render word detail modal if open
+            }
+        }
+
+        function handleLogin() { 
+            const username = prompt("ชื่อผู้ใช้:");
+            const password = prompt("รหัสผ่าน:");
+            if (username === "Admin" && password === "Arm102548") { // Standard admin credentials
+                sessionStorage.setItem('vithyophasUser', 'admin');
+                checkLoginStatus();
+                alert("เข้าสู่ระบบสำเร็จ!");
+            } else if (username || password) { alert("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"); }
+        }
+        function handleLogout() { 
+            sessionStorage.removeItem('vithyophasUser');
+            checkLoginStatus(); 
+            alert("ออกจากระบบแล้ว");
+        }
+        
+        function updateAdminUI() {
+            const adminOnlyElements = document.querySelectorAll('.admin-only');
+            adminOnlyElements.forEach(el => {
+                let displayStyle = 'none'; 
+                 if (appState.currentUser.role === 'admin') {
+                    if (el.classList.contains('nav-item') || (el.tagName === 'BUTTON' && el.parentElement && el.parentElement.classList.contains('flex')) || (el.tagName === 'BUTTON' && el.id === 'save-analysis-btn-modal') || (el.tagName === 'BUTTON' && el.id === 'save-word-detail-btn')) {
+                         displayStyle = 'flex'; 
+                    } else if (el.tagName === 'DIV' && el.classList.contains('admin-view-content')){
+                         displayStyle = 'block';
+                    } else if (el.tagName === 'BUTTON') { // Default for buttons not covered above
+                         displayStyle = 'inline-block';
+                    }
+                 }
+                el.style.display = displayStyle;
+            });
+        }
+
+        // --- THEME ---
+        function toggleTheme() { 
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+            updateThemeIcon();
+        }
+        function updateThemeIcon() { 
+            const icon = themeToggle.querySelector('svg');
+             if (document.body.classList.contains('dark-mode')) {
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
+            } else {
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />';
+            }
+        }
+
+        // --- SENTENCE RENDERING (Main List) ---
+        function renderSentences() {
+            if (!sentencesListContainer) return; 
+            sentencesListContainer.innerHTML = ''; 
+            updateTotalSentenceCount();
+            
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedStructure = filterStructure.value;
+            const selectedCategory = filterCategoryDropdown.value;
+
+            const filteredSentences = appState.sentences.filter(s => {
+                const glossText = s.gloss.map(g => `${g.word} ${g.gloss} ${g.pos || ''}`).join(' ').toLowerCase();
+                const matchesSearch = searchTerm === '' ||
+                                      s.vithyophas.toLowerCase().includes(searchTerm) ||
+                                      s.thai.toLowerCase().includes(searchTerm) ||
+                                      glossText.includes(searchTerm);
+                const matchesStructure = selectedStructure === '' || s.structure === selectedStructure;
+                const matchesCategory = selectedCategory === '' || s.category === selectedCategory;
+                return matchesSearch && matchesStructure && matchesCategory;
+            });
+
+            const paginatedSentences = filteredSentences.slice(
+                (appState.mainSentenceList.currentPage - 1) * appState.mainSentenceList.itemsPerPage,
+                appState.mainSentenceList.currentPage * appState.mainSentenceList.itemsPerPage
+            );
+
+            if (paginatedSentences.length === 0 && appState.sentences.length > 0) {
+                 sentencesListContainer.innerHTML = `<p class="text-gray-500">ไม่พบประโยคที่ตรงกับเงื่อนไขการค้นหา</p>`;
+            } else if (appState.sentences.length === 0) {
+                 sentencesListContainer.innerHTML = `<p class="text-gray-500">ยังไม่มีประโยคในระบบ <button id="trigger-add-sentence-from-empty" class="text-purple-600 hover:underline admin-only">เพิ่มประโยคใหม่</button></p>`;
+                 const triggerBtn = document.getElementById('trigger-add-sentence-from-empty');
+                 if (triggerBtn) {
+                    triggerBtn.addEventListener('click', () => openAddSentenceModal());
+                 }
+            }
+
+            paginatedSentences.forEach(sentence => {
+                const sentenceEl = document.createElement('div');
+                sentenceEl.className = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition sentence-item';
+                sentenceEl.dataset.id = sentence.id;
+
+                const glossHTML = sentence.gloss.map(g => {
+                    const posDisplay = g.pos ? (POS_TAGS[g.pos] || g.pos) : ''; // Get full Thai name, fallback to tag if not found
+                    return `
+                    <div class="interlinear-item">
+                        <div class="interlinear-word" data-word="${g.word}">${g.word}</div>
+                        ${posDisplay ? `<div class="interlinear-pos" title="${g.pos}">${posDisplay}</div>` : ''}
+                        <div class="interlinear-gloss">${g.gloss}</div>
+                    </div>
+                `}).join('');
+
+                let favoriteIconClass = sentence.isFavorite ? "text-yellow-500" : "text-gray-500 hover:text-yellow-500";
+                let favoriteIconFill = sentence.isFavorite ? "currentColor" : "none";
+
+                sentenceEl.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-lg font-medium mb-2">${sentence.vithyophas.split(' ').map(word => `<span class="interlinear-word" data-word="${word.replace(/[.,!?]/g, '')}">${word}</span>`).join(' ')}</h3>
+                            <div class="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                <span class="bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-200 px-2 py-0.5 rounded mr-2">${sentence.structure}</span>
+                                <span class="bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 px-2 py-0.5 rounded">${sentence.category}</span>
+                                ${sentence.dialect ? `<span class="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 px-2 py-0.5 rounded ml-2">${sentence.dialect}</span>` : ''}
+                            </div>
+                            <div class="interlinear mb-2">
+                                ${glossHTML}
+                            </div>
+                            <p class="text-gray-700 dark:text-gray-300">'${sentence.thai}'</p>
+                            ${sentence.notes ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1"><em>หมายเหตุ: ${sentence.notes}</em></p>` : ''}
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="toggle-favorite-btn p-1 rounded-full ${favoriteIconClass}" data-id="${sentence.id}" title="เพิ่มในรายการโปรด">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="${favoriteIconFill}" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                </svg>
+                            </button>
+                            <button class="edit-sentence-btn admin-only text-gray-500 hover:text-purple-500 p-1 rounded-full" data-id="${sentence.id}" title="แก้ไขประโยค">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                            <button class="delete-sentence-btn admin-only text-gray-500 hover:text-red-500 p-1 rounded-full" data-id="${sentence.id}" title="ลบประโยค">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+                        <button class="action-btn text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 flex items-center analyze-structure-btn" data-id="${sentence.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>วิเคราะห์โครงสร้าง (เฉพาะหน้า)</button>
+                        <button class="action-btn text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 flex items-center translation-test-btn" data-id="${sentence.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>ทดสอบแปลกลับ</button>
+                    </div>
+                `;
+                sentencesListContainer.appendChild(sentenceEl);
+            });
+            renderPagination(filteredSentences.length, appState.mainSentenceList, paginationContainer, (page) => {
+                appState.mainSentenceList.currentPage = page;
+                renderSentences();
+            }, false); 
+            attachActionListenersToSentences();
+            updateAdminUI(); 
+        }
+
+        function renderFullInterlinearList() { 
+             if (!fullInterlinearListContainer) return;
+            fullInterlinearListContainer.innerHTML = '';
+            appState.sentences.forEach(sentence => {
+                const glossHTML = sentence.gloss.map(g => `
+                    <div class="interlinear-item">
+                        <div class="interlinear-word" data-word="${g.word}">${g.word}</div>
+                        ${g.pos ? `<div class="interlinear-pos" title="${g.pos}">${POS_TAGS[g.pos] ? POS_TAGS[g.pos].split('(')[0].trim() : g.pos}</div>` : ''}
+                        <div class="interlinear-gloss">${g.gloss}</div>
+                    </div>
+                `).join('');
+
+                const sentenceEl = document.createElement('div');
+                sentenceEl.className = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4';
+                sentenceEl.innerHTML = `
+                    <h3 class="text-md font-medium mb-1">${sentence.vithyophas}</h3>
+                    <div class="interlinear mb-2">
+                        ${glossHTML}
+                    </div>
+                    <p class="text-sm text-gray-700 dark:text-gray-300">'${sentence.thai}'</p>
+                `;
+                fullInterlinearListContainer.appendChild(sentenceEl);
+                 sentenceEl.querySelectorAll('.interlinear-word').forEach(wordEl => {
+                    wordEl.addEventListener('click', (e) => {
+                        const wordText = e.target.dataset.word || e.target.textContent.trim();
+                        showWordDetailPopup(wordText);
+                    });
+                });
+            });
+        }
+        
+        function attachActionListenersToSentences() { 
+            document.querySelectorAll('.sentence-item .interlinear-word').forEach(wordEl => {
+                wordEl.addEventListener('click', (e) => {
+                    const wordText = e.target.dataset.word || e.target.textContent.trim();
+                    showWordDetailPopup(wordText);
+                });
+            });
+            document.querySelectorAll('.edit-sentence-btn').forEach(btn => btn.addEventListener('click', (e) => openAddSentenceModal(e.currentTarget.dataset.id)));
+            document.querySelectorAll('.delete-sentence-btn').forEach(btn => btn.addEventListener('click', (e) => handleDeleteSentence(e.currentTarget.dataset.id)));
+            document.querySelectorAll('.analyze-structure-btn').forEach(btn => btn.addEventListener('click', (e) => openStructureAnalysisModalPerSentence(e.currentTarget.dataset.id)));
+            document.querySelectorAll('.translation-test-btn').forEach(btn => btn.addEventListener('click', (e) => openTranslationTestModal(e.currentTarget.dataset.id)));
+            document.querySelectorAll('.toggle-favorite-btn').forEach(btn => btn.addEventListener('click', (e) => toggleFavorite(e.currentTarget.dataset.id, e.currentTarget)));
+        }
+
+        function toggleFavorite(sentenceId, buttonElement) { 
+            const sentence = appState.sentences.find(s => s.id === sentenceId);
+            if (sentence) {
+                sentence.isFavorite = !sentence.isFavorite;
+                saveDataToLocalStorage();
+                const svg = buttonElement.querySelector('svg');
+                if (sentence.isFavorite) {
+                    buttonElement.classList.remove('text-gray-500', 'hover:text-yellow-500');
+                    buttonElement.classList.add('text-yellow-500');
+                    svg.setAttribute('fill', 'currentColor');
+                } else {
+                    buttonElement.classList.remove('text-yellow-500');
+                    buttonElement.classList.add('text-gray-500', 'hover:text-yellow-500');
+                    svg.setAttribute('fill', 'none');
+                }
+            }
+        }
+
+        // --- PAGINATION (Generic version) ---
+        function renderPagination(totalItems, paginationState, targetContainer, onPageChangeCallback, includeFirstLast = false) {
+            if (!targetContainer) return; 
+            targetContainer.innerHTML = '';
+            const totalPages = Math.ceil(totalItems / paginationState.itemsPerPage);
+            if (totalPages <= 1) return;
+
+            const showingStart = (paginationState.currentPage - 1) * paginationState.itemsPerPage + 1;
+            const showingEnd = Math.min(paginationState.currentPage * paginationState.itemsPerPage, totalItems);
+            
+            const summary = document.createElement('div');
+            summary.className = 'text-sm text-gray-600 dark:text-gray-400';
+            summary.textContent = `แสดง ${totalItems > 0 ? showingStart : 0}-${showingEnd} จาก ${totalItems} รายการ`;
+            
+            const buttonsDiv = document.createElement('div');
+            buttonsDiv.className = 'flex space-x-1 items-center';
+
+            if (includeFirstLast && paginationState.currentPage > 1) {
+                buttonsDiv.appendChild(createPaginationButton('หน้าแรก', 1, onPageChangeCallback, paginationState, totalPages));
+            }
+            if (paginationState.currentPage > 1) {
+                buttonsDiv.appendChild(createPaginationButton('ก่อนหน้า', paginationState.currentPage - 1, onPageChangeCallback, paginationState, totalPages));
+            }
+
+            let startPage = Math.max(1, paginationState.currentPage - 2);
+            let endPage = Math.min(totalPages, paginationState.currentPage + 2);
+            if(totalPages <= 5) { 
+                startPage = 1;
+                endPage = totalPages;
+            } else {
+                if (paginationState.currentPage <=3) endPage = 5;
+                if (paginationState.currentPage >= totalPages - 2) startPage = totalPages - 4;
+            }
+
+            if (startPage > 1 && includeFirstLast) {
+                 const ellipsis = document.createElement('span');
+                 ellipsis.textContent = '...';
+                 ellipsis.className = 'px-2 py-1 text-gray-500 dark:text-gray-400';
+                 buttonsDiv.appendChild(ellipsis);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                buttonsDiv.appendChild(createPaginationButton(i, i, onPageChangeCallback, paginationState, totalPages, i === paginationState.currentPage));
+            }
+
+            if (endPage < totalPages && includeFirstLast) {
+                 const ellipsis = document.createElement('span');
+                 ellipsis.textContent = '...';
+                 ellipsis.className = 'px-2 py-1 text-gray-500 dark:text-gray-400';
+                 buttonsDiv.appendChild(ellipsis);
+            }
+
+            if (paginationState.currentPage < totalPages) {
+                buttonsDiv.appendChild(createPaginationButton('ถัดไป', paginationState.currentPage + 1, onPageChangeCallback, paginationState, totalPages));
+            }
+            if (includeFirstLast && paginationState.currentPage < totalPages) {
+                buttonsDiv.appendChild(createPaginationButton('หน้าสุดท้าย', totalPages, onPageChangeCallback, paginationState, totalPages));
+            }
+            
+            targetContainer.innerHTML = ''; 
+            targetContainer.appendChild(summary);
+            targetContainer.appendChild(buttonsDiv);
+        }
+
+        function createPaginationButton(text, page, onPageChangeCallback, paginationState, totalPages, isActive = false) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.className = `px-3 py-1 border rounded-md text-sm ${isActive ? 'border-purple-500 bg-purple-500 text-white dark:border-purple-400 dark:bg-purple-600' : 'border-gray-300 text-gray-700 hover:bg-purple-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-purple-700'}`;
+            if (page < 1 || page > totalPages) { 
+                button.disabled = true;
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+            button.addEventListener('click', () => {
+                if (button.disabled) return;
+                onPageChangeCallback(page);
+            });
+            return button;
+        }
+        
+        // --- ADD/EDIT SENTENCE MODAL ---
+        function openAddSentenceModal(sentenceId = null) { 
+            appState.editingSentenceId = sentenceId;
+            sentenceForm.reset();
+            glossEntriesContainer.innerHTML = ''; 
+            populateCategoryDropdowns(sentenceFormCategoryDropdown, null); 
+            populateStructureDropdown(sentenceFormGrammarStructure);
+
+            if (sentenceId) {
+                modalTitle.textContent = 'แก้ไขประโยค';
+                const sentence = appState.sentences.find(s => s.id === sentenceId);
+                if (sentence) {
+                    document.getElementById('sentence-id').value = sentence.id;
+                    document.getElementById('vithyophas-sentence').value = sentence.vithyophas;
+                    document.getElementById('thai-translation').value = sentence.thai;
+                    sentenceFormGrammarStructure.value = sentence.structure;
+                    sentenceFormCategoryDropdown.value = sentence.category;
+                    document.getElementById('dialect').value = sentence.dialect;
+                    document.getElementById('linguistic-notes').value = sentence.notes;
+                    
+                    sentence.gloss.forEach(g => addGlossEntry(g.word, g.pos, g.gloss));
+                }
+            } else {
+                modalTitle.textContent = 'เพิ่มประโยคใหม่';
+                document.getElementById('sentence-id').value = '';
+                addGlossEntry(); 
+            }
+            addSentenceModal.classList.remove('hidden');
+        }
+
+        function closeAddSentenceModal() { addSentenceModal.classList.add('hidden'); }
+        
+        function addGlossEntry(word = '', pos = '', gloss = '') { 
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'flex items-center space-x-2 gloss-entry';
+            
+            let posOptions = '<option value="">ชนิดคำ?</option>';
+            for (const [tag, name] of Object.entries(POS_TAGS)) {
+                posOptions += `<option value="${tag}" ${pos === tag ? 'selected' : ''}>${name}</option>`;
+            }
+
+            entryDiv.innerHTML = `
+                <input type="text" class="gloss-word w-1/3 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm" placeholder="คำวิทโย" value="${word}">
+                <select class="gloss-pos w-1/3 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm">
+                    ${posOptions}
+                </select>
+                <input type="text" class="gloss-meaning w-1/3 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm" placeholder="Gloss (Eng)" value="${gloss}">
+                <button type="button" class="remove-gloss-entry-btn text-red-500 hover:text-red-700 p-1 text-xl leading-none">&times;</button>
+            `;
+            entryDiv.querySelector('.remove-gloss-entry-btn').addEventListener('click', () => entryDiv.remove());
+            glossEntriesContainer.appendChild(entryDiv);
+        }
+
+        function handleSentenceFormSubmit(event) { 
+            event.preventDefault();
+            const id = document.getElementById('sentence-id').value || `s${Date.now()}`;
+            const vithyophasSentence = document.getElementById('vithyophas-sentence').value.trim();
+            const thaiTranslation = document.getElementById('thai-translation').value.trim();
+
+            if (!vithyophasSentence || !thaiTranslation) {
+                alert("กรุณากรอกประโยคในภาษาวิทโยและคำแปลภาษาไทย");
+                return;
+            }
+            
+            const glossEntries = [];
+            document.querySelectorAll('.gloss-entry').forEach(entry => {
+                const word = entry.querySelector('.gloss-word').value.trim();
+                const pos = entry.querySelector('.gloss-pos').value;
+                const gloss = entry.querySelector('.gloss-meaning').value.trim();
+                if (word) { glossEntries.push({ word, pos, gloss }); }
+            });
+
+            const sentenceToSave = {
+                id: id, vithyophas: vithyophasSentence, thai: thaiTranslation, gloss: glossEntries,
+                structure: sentenceFormGrammarStructure.value,
+                category: sentenceFormCategoryDropdown.value,
+                dialect: document.getElementById('dialect').value,
+                notes: document.getElementById('linguistic-notes').value,
+                isFavorite: false, 
+                customAnalysis: { subjectCore: '', subjectModifier: '', verbCore: '', verbAuxiliary: '', verbModifier: '', objectCore: '', objectModifier: '', tense: '' }
+            };
+
+            if (appState.editingSentenceId) {
+                const index = appState.sentences.findIndex(s => s.id === appState.editingSentenceId);
+                if (index !== -1) {
+                    sentenceToSave.isFavorite = appState.sentences[index].isFavorite; 
+                    sentenceToSave.customAnalysis = appState.sentences[index].customAnalysis || sentenceToSave.customAnalysis; 
+                    appState.sentences[index] = sentenceToSave;
+                }
+            } else {
+                appState.sentences.push(sentenceToSave);
+            }
+            
+            saveDataToLocalStorage();
+            if(sentenceManagementView.style.display === 'block') renderSentences(); 
+            if(structureAnalysisView.style.display === 'block') renderStructureAnalysisTable();
+            if(interlinearDisplayView.style.display === 'block') renderFullInterlinearList();
+            closeAddSentenceModal();
+        }
+
+        function handleDeleteSentence(sentenceId) { 
+            if (appState.currentUser.role !== 'admin') { alert("คุณไม่มีสิทธิ์ลบประโยค"); return; }
+            if (confirm("คุณแน่ใจหรือไม่ว่าต้องการลบประโยคนี้?")) {
+                appState.sentences = appState.sentences.filter(s => s.id !== sentenceId);
+                saveDataToLocalStorage();
+                if(sentenceManagementView.style.display === 'block') renderSentences(); 
+                if(structureAnalysisView.style.display === 'block') renderStructureAnalysisTable();
+                if(interlinearDisplayView.style.display === 'block') renderFullInterlinearList();
+            }
+        }
+
+        // --- WORD DETAIL POPUP ---
+        function showWordDetailPopup(word) { 
+            appState.editingWordKeyInModal = word.replace(/[.,!?]/g, ''); // Store the original key
+            const cleanedWord = appState.editingWordKeyInModal.toLowerCase();
+            const details = Object.entries(appState.vocabulary).find(([key, value]) => key.toLowerCase() === cleanedWord);
+            const isAdmin = appState.currentUser.role === 'admin';
+            
+            wordDetailTitle.textContent = `รายละเอียดคำ: ${appState.editingWordKeyInModal}`;
+            saveWordDetailBtn.style.display = isAdmin ? 'inline-block' : 'none';
+
+            if (details) {
+                const [vocabWord, vocabDetails] = details; // vocabWord is the original case from vocab
+                 appState.editingWordKeyInModal = vocabWord; // Update to exact key from vocab
+                 wordDetailTitle.textContent = `รายละเอียดคำ: ${vocabWord}`;
+
+
+                if (isAdmin) {
+                    let posOptions = '';
+                    for (const [tag, name] of Object.entries(POS_TAGS)) {
+                        posOptions += `<option value="${tag}" ${vocabDetails.pos === tag ? 'selected' : ''}>${name}</option>`;
+                    }
+                    wordDetailContent.innerHTML = `
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-word">คำศัพท์:</label>
+                            <input type="text" id="word-detail-word" value="${vocabWord}">
+                        </div>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-pos">ประเภท:</label>
+                            <select id="word-detail-pos">${posOptions}</select>
+                        </div>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-meaning">ความหมาย:</label>
+                            <input type="text" id="word-detail-meaning" value="${vocabDetails.meaning || ''}">
+                        </div>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-conjugation">การผัน:</label>
+                            <input type="text" id="word-detail-conjugation" value="${vocabDetails.conjugation || ''}">
+                        </div>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-notes">หมายเหตุ:</label>
+                            <textarea id="word-detail-notes" rows="3">${vocabDetails.notes || ''}</textarea>
+                        </div>
+                    `;
+                } else {
+                     wordDetailContent.innerHTML = `
+                        <p><strong>คำศัพท์:</strong> ${vocabWord}</p>
+                        <p><strong>ประเภท:</strong> ${POS_TAGS[vocabDetails.pos] || vocabDetails.pos || 'N/A'}</p>
+                        <p><strong>ความหมาย:</strong> ${vocabDetails.meaning || 'N/A'}</p>
+                        ${vocabDetails.conjugation ? `<p><strong>การผัน:</strong> ${vocabDetails.conjugation}</p>` : ''}
+                        ${vocabDetails.notes ? `<p><strong>หมายเหตุ:</strong> ${vocabDetails.notes}</p>` : ''}
+                    `;
+                }
+            } else {
+                 wordDetailTitle.textContent = `รายละเอียดคำ: ${appState.editingWordKeyInModal}`;
+                 if (isAdmin) {
+                    let posOptions = '<option value="">เลือกประเภท</option>'; // Default empty option
+                    for (const [tag, name] of Object.entries(POS_TAGS)) {
+                        posOptions += `<option value="${tag}">${name}</option>`;
+                    }
+                     wordDetailContent.innerHTML = `
+                        <p class="mb-2">ไม่พบข้อมูลสำหรับคำว่า "${appState.editingWordKeyInModal}". คุณสามารถเพิ่มข้อมูลใหม่ได้:</p>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-word">คำศัพท์:</label>
+                            <input type="text" id="word-detail-word" value="${appState.editingWordKeyInModal}">
+                        </div>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-pos">ประเภท:</label>
+                            <select id="word-detail-pos">${posOptions}</select>
+                        </div>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-meaning">ความหมาย:</label>
+                            <input type="text" id="word-detail-meaning" value="">
+                        </div>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-conjugation">การผัน:</label>
+                            <input type="text" id="word-detail-conjugation" value="">
+                        </div>
+                        <div class="word-detail-form-row">
+                            <label for="word-detail-notes">หมายเหตุ:</label>
+                            <textarea id="word-detail-notes" rows="3"></textarea>
+                        </div>
+                     `;
+                 } else {
+                    wordDetailContent.innerHTML = `<p>ไม่พบข้อมูลสำหรับคำว่า "${appState.editingWordKeyInModal}" ในฐานข้อมูลคำศัพท์</p>`;
+                 }
+            }
+            updateAdminUI(); 
+            wordDetailModal.classList.remove('hidden');
+        }
+
+        function handleSaveWordDetailChanges() {
+            if (appState.currentUser.role !== 'admin' || !appState.editingWordKeyInModal) return;
+
+            const originalWordKey = appState.editingWordKeyInModal;
+            const editedWordValue = document.getElementById('word-detail-word').value.trim();
+            const newPos = document.getElementById('word-detail-pos').value;
+            const newMeaning = document.getElementById('word-detail-meaning').value.trim();
+            const newConjugation = document.getElementById('word-detail-conjugation').value.trim();
+            const newNotes = document.getElementById('word-detail-notes').value.trim();
+
+            if (!editedWordValue) {
+                alert("ชื่อคำศัพท์ไม่สามารถเว้นว่างได้");
+                return;
+            }
+
+            const newVocabEntry = {
+                pos: newPos,
+                meaning: newMeaning,
+                conjugation: newConjugation,
+                notes: newNotes
+            };
+
+            const originalWordExistsInVocab = appState.vocabulary.hasOwnProperty(originalWordKey);
+
+            // Check if the word key itself is being changed
+            if (editedWordValue !== originalWordKey) {
+                // If new key already exists
+                if (appState.vocabulary.hasOwnProperty(editedWordValue)) {
+                    alert(`คำว่า "${editedWordValue}" มีอยู่ในฐานข้อมูลแล้ว ไม่สามารถเปลี่ยนชื่อทับได้`);
+                    return;
+                }
+                // Create new entry
+                appState.vocabulary[editedWordValue] = newVocabEntry;
+                // Delete old entry if it existed
+                if(originalWordExistsInVocab) {
+                    delete appState.vocabulary[originalWordKey];
+                }
+                // Update all sentences' gloss entries
+                appState.sentences.forEach(sentence => {
+                    sentence.gloss.forEach(g => {
+                        if (g.word === originalWordKey) {
+                            g.word = editedWordValue;
+                        }
+                    });
+                });
+                appState.editingWordKeyInModal = editedWordValue; 
+                wordDetailTitle.textContent = `รายละเอียดคำ: ${editedWordValue}`;
+                alert(`คำศัพท์ "${originalWordKey}" ถูกเปลี่ยนชื่อเป็น "${editedWordValue}" และอัปเดตในประโยคที่เกี่ยวข้องแล้ว`);
+
+            } else { // Word key is the same, just update properties (or add if it was a new word)
+                appState.vocabulary[originalWordKey] = newVocabEntry;
+                if (originalWordExistsInVocab) {
+                    alert(`รายละเอียดคำศัพท์ "${originalWordKey}" ถูกบันทึกแล้ว`);
+                } else {
+                    alert(`คำศัพท์ใหม่ "${originalWordKey}" ถูกเพิ่มและบันทึกแล้ว`);
+                }
+            }
+
+            saveDataToLocalStorage();
+            closeWordDetailModal();
+
+            const currentViewPanelId = mainViewPanels.find(p => p && p.style.display === 'block')?.id;
+            if (currentViewPanelId) {
+                const activeNavEntry = Object.entries(viewMappings).find(([navId, map]) => map.viewId === currentViewPanelId);
+                if (activeNavEntry && viewMappings[activeNavEntry[0]].onShow) {
+                    viewMappings[activeNavEntry[0]].onShow();
+                }
+            }
+        }
+
+
+        function closeWordDetailModal() { 
+            wordDetailModal.classList.add('hidden'); 
+            appState.editingWordKeyInModal = null;
+        }
+
+
+        // --- STRUCTURE ANALYSIS MODAL (Per Sentence) ---
+        function openStructureAnalysisModalPerSentence(sentenceId) { 
+            const sentence = appState.sentences.find(s => s.id === sentenceId);
+            if (!sentence) return;
+            appState.analyzingSentenceIdInModal = sentenceId; 
+
+            const isAdmin = appState.currentUser.role === 'admin';
+            saveAnalysisBtnModal.style.display = isAdmin ? 'inline-block' : 'none';
+
+            let S_core = "", S_mod = "", V_core = "", V_aux = "", V_mod = "", O_core = "", O_mod = "", Tense = "";
+            if (sentence.customAnalysis) {
+                S_core = sentence.customAnalysis.subjectCore || ""; S_mod = sentence.customAnalysis.subjectModifier || "";
+                V_core = sentence.customAnalysis.verbCore || ""; V_aux = sentence.customAnalysis.verbAuxiliary || ""; V_mod = sentence.customAnalysis.verbModifier || "";
+                O_core = sentence.customAnalysis.objectCore || ""; O_mod = sentence.customAnalysis.objectModifier || "";
+                Tense = sentence.customAnalysis.tense || "";
+            } else if (sentence.gloss && sentence.gloss.length > 0) {
+                // Basic SVO assumption for default fill if no customAnalysis
+                if (sentence.structure === "SVO") {
+                    S_core = sentence.gloss[0]?.word || ""; 
+                    V_core = sentence.gloss[1]?.word || ""; 
+                    O_core = sentence.gloss.slice(2).map(g=>g.word).join(" ") || "";
+                } 
+            }
+            
+            const sCoreDisplay = isAdmin ? `<input type="text" id="modal-analysis-subjectCore" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${S_core}">` : `<div class="font-medium">${S_core || 'N/A'}</div>`;
+            const sModDisplay = isAdmin ? `<input type="text" id="modal-analysis-subjectModifier" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${S_mod}">` : `<div class="font-medium">${S_mod || 'N/A'}</div>`;
+            const vCoreDisplay = isAdmin ? `<input type="text" id="modal-analysis-verbCore" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${V_core}">` : `<div class="font-medium">${V_core || 'N/A'}</div>`;
+            const vAuxDisplay = isAdmin ? `<input type="text" id="modal-analysis-verbAuxiliary" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${V_aux}">` : `<div class="font-medium">${V_aux || 'N/A'}</div>`;
+            const vModDisplay = isAdmin ? `<input type="text" id="modal-analysis-verbModifier" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${V_mod}">` : `<div class="font-medium">${V_mod || 'N/A'}</div>`;
+            const oCoreDisplay = isAdmin ? `<input type="text" id="modal-analysis-objectCore" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${O_core}">` : `<div class="font-medium">${O_core || 'N/A'}</div>`;
+            const oModDisplay = isAdmin ? `<input type="text" id="modal-analysis-objectModifier" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${O_mod}">` : `<div class="font-medium">${O_mod || 'N/A'}</div>`;
+            const tenseDisplay = isAdmin ? `<input type="text" id="modal-analysis-tense" class="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1" value="${Tense}">` : `<div class="font-medium">${Tense || 'N/A'}</div>`;
+
+
+            structureModalBody.innerHTML = `
+                <h3 class="text-lg font-medium mb-2">${sentence.vithyophas}</h3>
+                <p class="text-gray-700 dark:text-gray-300 mb-4">'${sentence.thai}'</p>
+                <div class="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg mb-6">
+                    <h4 class="font-medium text-purple-800 dark:text-purple-200 mb-2">โครงสร้างไวยากรณ์: ${sentence.structure}</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                        <div class="bg-purple-100 dark:bg-purple-800 p-3 rounded-md">
+                            <div class="text-purple-600 dark:text-purple-300 mb-1 font-semibold">ประธาน (S)</div>
+                            <label class="block text-xs mt-1">แกนหลัก:</label> ${sCoreDisplay}
+                            <label class="block text-xs mt-1">ขยาย:</label> ${sModDisplay}
+                        </div>
+                        <div class="bg-purple-100 dark:bg-purple-800 p-3 rounded-md">
+                            <div class="text-purple-600 dark:text-purple-300 mb-1 font-semibold">กริยา (V)</div>
+                            <label class="block text-xs mt-1">แกนหลัก:</label> ${vCoreDisplay}
+                            <label class="block text-xs mt-1">ช่วย:</label> ${vAuxDisplay}
+                            <label class="block text-xs mt-1">ขยาย:</label> ${vModDisplay}
+                        </div>
+                        <div class="bg-purple-100 dark:bg-purple-800 p-3 rounded-md">
+                            <div class="text-purple-600 dark:text-purple-300 mb-1 font-semibold">กรรม (O)</div>
+                             <label class="block text-xs mt-1">แกนหลัก:</label> ${oCoreDisplay}
+                             <label class="block text-xs mt-1">ขยาย:</label> ${oModDisplay}
+                        </div>
+                         <div class="bg-purple-100 dark:bg-purple-800 p-3 rounded-md">
+                            <div class="text-purple-600 dark:text-purple-300 mb-1 font-semibold">กาล (Tense)</div>
+                            ${tenseDisplay}
+                        </div>
+                    </div>
+                </div>
+                <h4 class="font-medium mb-3">แผนภูมิโครงสร้างประโยค (Tree Diagram - ตัวอย่าง)</h4>
+                <div class="tree-diagram bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-sm"></div>
+                <h4 class="font-medium mb-3 mt-4">การวิเคราะห์ทางวากยสัมพันธ์ (อิงตาม Gloss และ Vocab)</h4>
+                <div id="modal-syntactic-analysis-table-container" class="overflow-x-auto"></div>`;
+            
+            const treeS = S_core || (sentence.gloss[0]?.word || 'S?'); const treeV = V_core || (sentence.gloss[1]?.word || 'V?'); const treeO = O_core || (sentence.gloss[2]?.word || 'O?');
+            const staticTree = `<div class="tree-node"><div class="bg-purple-200 dark:bg-purple-700 px-2 py-0.5 rounded-md mb-1 text-xs">S</div><div class="tree-branch"></div><div class="tree-children"><div class="tree-node mx-2"><div class="bg-blue-200 dark:bg-blue-700 px-2 py-0.5 rounded-md mb-1 text-xs">NP</div><div class="tree-branch"></div><div class="tree-children"><div class="tree-node"><div class="bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-md text-xs">${treeS}</div></div></div></div><div class="tree-node mx-2"><div class="bg-green-200 dark:bg-green-700 px-2 py-0.5 rounded-md mb-1 text-xs">VP</div><div class="tree-branch"></div><div class="tree-children"><div class="tree-node mx-1"><div class="bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-md mb-1 text-xs">${treeV}</div></div><div class="tree-node mx-1"><div class="bg-blue-200 dark:bg-blue-700 px-2 py-0.5 rounded-md mb-1 text-xs">NP</div><div class="tree-branch"></div><div class="tree-children"><div class="tree-node"><div class="bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-md text-xs">${treeO}</div></div></div></div></div></div></div></div>`;
+            structureModalBody.querySelector('.tree-diagram').innerHTML = staticTree;
+            
+            let analysisTableHTML = `<table class="w-full border-collapse text-sm"><thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left">คำ</th><th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left">ชนิดคำ (POS)</th><th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left">หน้าที่ (โดยประมาณ)</th><th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left">Gloss/หมายเหตุ</th></tr></thead><tbody>`;
+            sentence.gloss.forEach((g, index) => {
+                const wordDetail = appState.vocabulary[g.word] || {};
+                const posToShow = g.pos ? (POS_TAGS[g.pos] || g.pos) : (wordDetail.pos ? (POS_TAGS[wordDetail.pos] || wordDetail.pos) : 'N/A');
+                let role = "ส่วนขยาย (Mod)"; const currentWord = g.word;
+                if (S_core && S_core.includes(currentWord)) role = "ประธาน (แกนหลัก)";
+                else if (V_core && V_core.includes(currentWord)) role = "กริยา (แกนหลัก)";
+                else if (O_core && O_core.includes(currentWord)) role = "กรรม (แกนหลัก)";
+                else if (sentence.structure === "SVO") { 
+                    if(index === 0 && (!S_core || S_core.includes(currentWord))) role = "ประธาน (S)";
+                    else if (index === 1 && (!V_core || V_core.includes(currentWord))) role = "กริยา (V)";
+                    else if (index >= 2 && (!O_core || O_core.includes(currentWord))) role = "กรรม (O)";
+                }
+                analysisTableHTML += `<tr class="dark:text-gray-300"><td class="border border-gray-300 dark:border-gray-600 px-2 py-1">${g.word}</td><td class="border border-gray-300 dark:border-gray-600 px-2 py-1">${posToShow}</td><td class="border border-gray-300 dark:border-gray-600 px-2 py-1">${role}</td><td class="border border-gray-300 dark:border-gray-600 px-2 py-1">${g.gloss || (wordDetail.notes || '')}</td></tr>`;
+            });
+            analysisTableHTML += `</tbody></table>`;
+            structureModalBody.querySelector('#modal-syntactic-analysis-table-container').innerHTML = analysisTableHTML;
+
+            updateAdminUI(); 
+            structureModal.classList.remove('hidden');
+        }
+        function closeStructureAnalysisModalPerSentence() { 
+            structureModal.classList.add('hidden');
+            appState.analyzingSentenceIdInModal = null;
+        }
+        function handleSaveStructureAnalysisInModal() { 
+            if (appState.currentUser.role !== 'admin' || !appState.analyzingSentenceIdInModal) return;
+            const sentence = appState.sentences.find(s => s.id === appState.analyzingSentenceIdInModal);
+            if (!sentence) return;
+
+            sentence.customAnalysis = {
+                subjectCore: document.getElementById('modal-analysis-subjectCore').value.trim(),
+                subjectModifier: document.getElementById('modal-analysis-subjectModifier').value.trim(),
+                verbCore: document.getElementById('modal-analysis-verbCore').value.trim(),
+                verbAuxiliary: document.getElementById('modal-analysis-verbAuxiliary').value.trim(),
+                verbModifier: document.getElementById('modal-analysis-verbModifier').value.trim(),
+                objectCore: document.getElementById('modal-analysis-objectCore').value.trim(),
+                objectModifier: document.getElementById('modal-analysis-objectModifier').value.trim(),
+                tense: document.getElementById('modal-analysis-tense').value.trim()
+            };
+            
+            saveDataToLocalStorage();
+            alert("บันทึกการวิเคราะห์แล้ว");
+            closeStructureAnalysisModalPerSentence();
+            if (structureAnalysisView.style.display === 'block') { 
+                renderStructureAnalysisTable();
+            }
+             if (sentenceManagementView.style.display === 'block') {
+                renderSentences(); 
+            }
+        }
+        
+        // --- STRUCTURE ANALYSIS OVERVIEW TABLE ---
+        function renderStructureAnalysisTable() {
+            if (!structureAnalysisTableBody) return;
+            structureAnalysisTableBody.innerHTML = '';
+            updateTotalSentenceCount();
+
+            const isAdmin = appState.currentUser.role === 'admin';
+            const searchTerm = appState.structureAnalysisTable.searchTerm.toLowerCase();
+
+            const filteredSentences = appState.sentences.filter(s => {
+                if (!searchTerm) return true;
+                return s.vithyophas.toLowerCase().includes(searchTerm) || 
+                       s.thai.toLowerCase().includes(searchTerm) ||
+                       (s.customAnalysis && (
+                           (s.customAnalysis.subjectCore && s.customAnalysis.subjectCore.toLowerCase().includes(searchTerm)) ||
+                           (s.customAnalysis.verbCore && s.customAnalysis.verbCore.toLowerCase().includes(searchTerm)) ||
+                           (s.customAnalysis.objectCore && s.customAnalysis.objectCore.toLowerCase().includes(searchTerm))
+                       ));
+            });
+
+
+            const paginatedSentences = filteredSentences.slice(
+                (appState.structureAnalysisTable.currentPage - 1) * appState.structureAnalysisTable.itemsPerPage,
+                appState.structureAnalysisTable.currentPage * appState.structureAnalysisTable.itemsPerPage
+            );
+
+             if (paginatedSentences.length === 0 && filteredSentences.length > 0) {
+                 structureAnalysisTableBody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-gray-500 dark:text-gray-400">ไม่พบประโยคที่ตรงกับคำค้นหาในตาราง</td></tr>`;
+            } else if (filteredSentences.length === 0 && appState.sentences.length > 0) {
+                 structureAnalysisTableBody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-gray-500 dark:text-gray-400">ไม่พบประโยคที่ตรงกับคำค้นหา</td></tr>`;
+            } else if (appState.sentences.length === 0) {
+                 structureAnalysisTableBody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-gray-500 dark:text-gray-400">ยังไม่มีประโยคในระบบ</td></tr>`;
+            }
+
+
+            paginatedSentences.forEach(sentence => {
+                const row = structureAnalysisTableBody.insertRow();
+                row.dataset.id = sentence.id; 
+                
+                const analysis = sentence.customAnalysis || { subjectCore: '', subjectModifier: '', verbCore: '', verbAuxiliary: '', verbModifier: '', objectCore: '', objectModifier: '', tense: '' };
+
+                const createCell = (value, fieldName, inputType = 'text', options = null, widthClass = 'table-cell-input-medium') => {
+                    const cell = row.insertCell();
+                    cell.classList.add("px-2", "py-1", "whitespace-nowrap");
+                    if (isAdmin) {
+                        cell.classList.add("table-cell-editable");
+                        let inputElement;
+                        if (inputType === 'select' && options) {
+                            inputElement = document.createElement('select');
+                            inputElement.className = `w-full border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs ${widthClass}`;
+                            options.forEach(opt => {
+                                const option = document.createElement('option');
+                                option.value = opt; option.textContent = opt;
+                                if (value === opt) option.selected = true;
+                                inputElement.appendChild(option);
+                            });
+                            inputElement.addEventListener('change', (e) => handleStructureAnalysisFieldChange(sentence.id, fieldName, e.target.value));
+                        } else {
+                            inputElement = document.createElement('input');
+                            inputElement.type = 'text'; inputElement.value = value;
+                            inputElement.className = `w-full border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs ${widthClass}`;
+                            inputElement.placeholder = fieldName.includes('vithyophas') || fieldName.includes('thai') ? '' : fieldName.charAt(0).toUpperCase();
+                             inputElement.addEventListener('change', (e) => handleStructureAnalysisFieldChange(sentence.id, fieldName, e.target.value));
+                        }
+                        cell.appendChild(inputElement);
+                    } else {
+                        cell.textContent = value || '-';
+                        if (fieldName === 'vithyophasSentence' || fieldName === 'thaiTranslation') {
+                             cell.classList.add("truncate");
+                             cell.style.maxWidth = "150px"; 
+                        }
+                    }
+                    return cell;
+                };
+
+                createCell(sentence.vithyophas, 'vithyophasSentence', 'text', null, 'table-cell-input-wide');
+                createCell(sentence.thai, 'thaiTranslation', 'text', null, 'table-cell-input-wide');
+                createCell(sentence.structure, 'structure', 'select', STRUCTURE_TYPES, 'table-cell-input-short');
+                
+                createCell(analysis.subjectCore, 'subjectCore');
+                createCell(analysis.subjectModifier, 'subjectModifier');
+                createCell(analysis.verbCore, 'verbCore');
+                createCell(analysis.verbAuxiliary, 'verbAuxiliary');
+                createCell(analysis.verbModifier, 'verbModifier');
+                createCell(analysis.objectCore, 'objectCore');
+                createCell(analysis.objectModifier, 'objectModifier');
+                createCell(analysis.tense, 'tense', 'text', null, 'table-cell-input-short');
+            });
+
+            renderPagination( filteredSentences.length, appState.structureAnalysisTable, structureAnalysisPaginationContainer, 
+                (page) => { appState.structureAnalysisTable.currentPage = page; renderStructureAnalysisTable(); }, true 
+            );
+            updateAdminUI(); 
+        }
+
+
+        function handleStructureAnalysisFieldChange(sentenceId, field, value) {
+            const sentence = appState.sentences.find(s => s.id === sentenceId);
+            if (!sentence) return;
+
+            if (field === 'vithyophasSentence') {
+                sentence.vithyophas = value.trim();
+            } else if (field === 'thaiTranslation') {
+                sentence.thai = value.trim();
+            } else if (field === 'structure') {
+                sentence.structure = value;
+            } else if (['subjectCore', 'subjectModifier', 'verbCore', 'verbAuxiliary', 'verbModifier', 'objectCore', 'objectModifier', 'tense'].includes(field)) {
+                if (!sentence.customAnalysis) { 
+                    sentence.customAnalysis = { subjectCore: '', subjectModifier: '', verbCore: '', verbAuxiliary: '', verbModifier: '', objectCore: '', objectModifier: '', tense: '' };
+                }
+                sentence.customAnalysis[field] = value.trim();
+            }
+            saveDataToLocalStorage();
+        }
+
+
+        // --- TRANSLATION TEST MODAL ---
+        let currentTestSentence = null;
+        function openTranslationTestModal(sentenceId) { 
+            currentTestSentence = appState.sentences.find(s => s.id === sentenceId);
+            if (!currentTestSentence) return;
+            
+            translationModalBody.innerHTML = `
+                <div class="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg mb-4">
+                    <h3 class="font-medium mb-2 text-gray-800 dark:text-gray-200">ประโยคต้นฉบับ (ภาษาไทย):</h3>
+                    <p class="text-lg text-gray-700 dark:text-gray-300">'${currentTestSentence.thai}'</p>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">ลองแปลเป็นภาษาวิทโย:</label>
+                    <textarea id="translation-test-input" class="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 h-24" placeholder="พิมพ์คำแปลในภาษาวิทโย..."></textarea>
+                </div>
+                <button id="check-translation-btn" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-md mb-4">ตรวจสอบ</button>
+                <div id="translation-feedback" class="p-4 rounded-lg hidden"></div>`;
+            translationModal.classList.remove('hidden'); 
+            document.getElementById('check-translation-btn').addEventListener('click', checkBackTranslation);
+            translationModalRetryBtn.onclick = () => openTranslationTestModal(sentenceId); 
+        }
+
+        function checkBackTranslation() { 
+            const userInput = document.getElementById('translation-test-input').value.trim();
+            const feedbackDiv = document.getElementById('translation-feedback');
+            if (!currentTestSentence) return;
+
+            const originalVithyophas = currentTestSentence.vithyophas.trim().toLowerCase().replace(/[.,!?]/g, '');
+            const userVithyophas = userInput.toLowerCase().replace(/[.,!?]/g, '');
+
+            feedbackDiv.classList.remove('hidden', 'bg-green-100', 'border-green-200', 'text-green-800', 'bg-yellow-100', 'border-yellow-200', 'text-yellow-800','bg-red-100', 'border-red-200', 'text-red-800', 
+                                        'dark:bg-green-900', 'dark:border-green-700', 'dark:text-green-200', 'dark:bg-yellow-900', 'dark:border-yellow-700', 'dark:text-yellow-200', 'dark:bg-red-900', 'dark:border-red-700', 'dark:text-red-200');
+            feedbackDiv.innerHTML = ''; 
+
+            if (userVithyophas === originalVithyophas) {
+                feedbackDiv.classList.add('bg-green-100', 'border-green-200', 'text-green-800', 'dark:bg-green-900', 'dark:border-green-700', 'dark:text-green-200');
+                feedbackDiv.innerHTML = `<div class="flex items-start"><svg class="h-5 w-5 text-green-500 dark:text-green-400 mr-2 mt-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg><div><h4 class="font-medium">ถูกต้อง!</h4><p>คำแปลของคุณถูกต้อง: ${userInput}</p></div></div>`;
+            } else if (userVithyophas.length > 0) { 
+                feedbackDiv.classList.add('bg-yellow-100', 'border-yellow-200', 'text-yellow-800', 'dark:bg-yellow-900', 'dark:border-yellow-700', 'dark:text-yellow-200');
+                feedbackDiv.innerHTML = `<div class="flex items-start"><svg class="h-5 w-5 text-yellow-500 dark:text-yellow-400 mr-2 mt-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg><div><h4 class="font-medium">เกือบถูกต้อง / ไม่ตรงทั้งหมด</h4><p>คุณตอบ: ${userInput}</p><p>เฉลย: ${currentTestSentence.vithyophas}</p></div></div>`;
+            } else {
+                feedbackDiv.classList.add('bg-red-100', 'border-red-200', 'text-red-800', 'dark:bg-red-900', 'dark:border-red-700', 'dark:text-red-200');
+                feedbackDiv.innerHTML = `<p>กรุณาลองพิมพ์คำแปล</p>`;
+            }
+            feedbackDiv.classList.remove('hidden');
+        }
+        function closeTranslationTestModal() { translationModal.classList.add('hidden'); currentTestSentence = null; }
+
+        // --- IMPORT/EXPORT ---
+        function exportDataAsJSON() { 
+            const dataToExport = { sentences: appState.sentences, vocabulary: appState.vocabulary, availableCategories: appState.availableCategories };
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'vithyophas_data.json';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+
+        function exportDataAsCSV() { 
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "ID,Vithyophas,Thai,Structure,Category,Dialect,Notes,GlossWords,GlossPOS,Glosses,SubjectCore,SubjectMod,VerbCore,VerbAux,VerbMod,ObjectCore,ObjectMod,Tense\n";
+            appState.sentences.forEach(s => {
+                const glossWords = s.gloss.map(g => g.word).join('|'); const glossPOS = s.gloss.map(g => g.pos).join('|'); const glosses = s.gloss.map(g => g.gloss).join('|');
+                const analysis = s.customAnalysis || {};
+                const row = [s.id, `"${s.vithyophas}"`, `"${s.thai}"`, s.structure, s.category, s.dialect, `"${s.notes || ''}"`, 
+                             `"${glossWords}"`, `"${glossPOS}"`, `"${glosses}"`, 
+                             `"${analysis.subjectCore || ''}"`, `"${analysis.subjectModifier || ''}"`,
+                             `"${analysis.verbCore || ''}"`, `"${analysis.verbAuxiliary || ''}"`, `"${analysis.verbModifier || ''}"`,
+                             `"${analysis.objectCore || ''}"`, `"${analysis.objectModifier || ''}"`,
+                             `"${analysis.tense || ''}"`
+                            ].join(",");
+                csvContent += row + "\n";
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", "vithyophas_sentences.csv");
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        function handleImportData() { 
+            const file = importFileInput.files[0];
+            if (!file) { alert("กรุณาเลือกไฟล์ที่จะนำเข้า"); return; }
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    if (confirm("การนำเข้าข้อมูลจะเขียนทับข้อมูลที่มีอยู่ คุณแน่ใจหรือไม่?")) {
+                        if (importedData.sentences) {
+                             appState.sentences = importedData.sentences.map(s => {
+                                if (s.customAnalysis && (s.customAnalysis.subject !== undefined || s.customAnalysis.verb !== undefined || s.customAnalysis.object !== undefined)) {
+                                     s.customAnalysis = {
+                                        subjectCore: s.customAnalysis.subject || '', subjectModifier: s.customAnalysis.subjectModifier || '',
+                                        verbCore: s.customAnalysis.verb || '', verbAuxiliary: s.customAnalysis.verbAuxiliary || '', verbModifier: s.customAnalysis.verbModifier || '',
+                                        objectCore: s.customAnalysis.object || '', objectModifier: s.customAnalysis.objectModifier || '',
+                                        tense: s.customAnalysis.tense || ''
+                                    };
+                                } else if (!s.customAnalysis) {
+                                     s.customAnalysis = { subjectCore: '', subjectModifier: '', verbCore: '', verbAuxiliary: '', verbModifier: '', objectCore: '', objectModifier: '', tense: '' };
+                                }
+                                 s.customAnalysis = { // Ensure all fields
+                                    subjectCore: s.customAnalysis.subjectCore || '', subjectModifier: s.customAnalysis.subjectModifier || '',
+                                    verbCore: s.customAnalysis.verbCore || '', verbAuxiliary: s.customAnalysis.verbAuxiliary || '', verbModifier: s.customAnalysis.verbModifier || '',
+                                    objectCore: s.customAnalysis.objectCore || '', objectModifier: s.customAnalysis.objectModifier || '',
+                                    tense: s.customAnalysis.tense || ''
+                                };
+                                return s;
+                            });
+                        }
+                        if (importedData.vocabulary) appState.vocabulary = importedData.vocabulary;
+                        if (importedData.availableCategories) appState.availableCategories = importedData.availableCategories;
+                        
+                        saveDataToLocalStorage(); 
+                        populateCategoryDropdowns(filterCategoryDropdown);
+                        populateCategoryDropdowns(sentenceFormCategoryDropdown);
+                        
+                        const currentViewId = mainViewPanels.find(p => p.style.display === 'block')?.id;
+                        const currentNavButtonEntry = Object.entries(viewMappings).find(([navId, map]) => map.viewId === currentViewId);
+                        if (currentNavButtonEntry && viewMappings[currentNavButtonEntry[0]].onShow) {
+                             viewMappings[currentNavButtonEntry[0]].onShow();
+                        } else { renderSentences(); } 
+                        alert("นำเข้าข้อมูลสำเร็จแล้ว!");
+                    }
+                } catch (e) { alert("เกิดข้อผิดพลาดในการอ่านไฟล์ JSON: " + e.message); }
+            };
+            reader.readAsText(file); importFileInput.value = ''; 
+        }
+
+        // --- EVENT LISTENERS ---
+        function setupEventListeners() {
+            themeToggle.addEventListener('click', toggleTheme);
+            userMenu.addEventListener('click', () => userDropdown.classList.toggle('hidden'));
+            document.addEventListener('click', (event) => { 
+                if (!userMenu.contains(event.target) && !userDropdown.contains(event.target)) { userDropdown.classList.add('hidden'); }
+            });
+            loginBtn.addEventListener('click', (e) => { e.preventDefault(); handleLogin(); userDropdown.classList.add('hidden'); });
+            logoutBtn.addEventListener('click', (e) => { e.preventDefault(); handleLogout(); userDropdown.classList.add('hidden'); });
+
+            addSentenceBtn.addEventListener('click', () => openAddSentenceModal());
+            closeModalBtn.addEventListener('click', closeAddSentenceModal);
+            cancelSentenceFormBtn.addEventListener('click', closeAddSentenceModal);
+            sentenceForm.addEventListener('submit', handleSentenceFormSubmit);
+            addGlossEntryBtn.addEventListener('click', () => addGlossEntry());
+            sentenceFormCategoryDropdown.addEventListener('change', handleAddNewCategory);
+
+            searchInput.addEventListener('input', () => { appState.mainSentenceList.currentPage = 1; renderSentences(); });
+            filterStructure.addEventListener('change', () => { appState.mainSentenceList.currentPage = 1; renderSentences(); });
+            filterCategoryDropdown.addEventListener('change', () => { appState.mainSentenceList.currentPage = 1; renderSentences(); });
+            
+            structureAnalysisSearchInput.addEventListener('input', (e) => {
+                appState.structureAnalysisTable.searchTerm = e.target.value;
+                appState.structureAnalysisTable.currentPage = 1;
+                renderStructureAnalysisTable();
+            });
+
+            closeStructureModalBtn.addEventListener('click', closeStructureAnalysisModalPerSentence);
+            structureModalCloseActionBtn.addEventListener('click', closeStructureAnalysisModalPerSentence);
+            saveAnalysisBtnModal.addEventListener('click', handleSaveStructureAnalysisInModal);
+
+            closeTranslationModalBtn.addEventListener('click', closeTranslationTestModal);
+            translationModalCloseActionBtn.addEventListener('click', closeTranslationTestModal);
+            
+            closeWordDetailModalBtn.addEventListener('click', closeWordDetailModal);
+            wordDetailModalCloseActionBtn.addEventListener('click', closeWordDetailModal);
+            saveWordDetailBtn.addEventListener('click', handleSaveWordDetailChanges);
+
+
+            viewControllingNavButtons.forEach(button => {
+                if (button) { button.addEventListener('click', () => switchView(button.id)); }
+            });
+
+            if (exportJsonBtn) exportJsonBtn.addEventListener('click', exportDataAsJSON);
+            if (exportCsvBtn) exportCsvBtn.addEventListener('click', exportDataAsCSV);
+            if (importDataBtn) importDataBtn.addEventListener('click', handleImportData);
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === "Escape") {
+                    if (!addSentenceModal.classList.contains('hidden')) closeAddSentenceModal();
+                    if (!structureModal.classList.contains('hidden')) closeStructureAnalysisModalPerSentence();
+                    if (!translationModal.classList.contains('hidden')) closeTranslationTestModal();
+                    if (!wordDetailModal.classList.contains('hidden')) closeWordDetailModal();
+                }
+            });
+            [addSentenceModal, structureModal, translationModal, wordDetailModal].forEach(modal => {
+                if (!modal) return;
+                modal.addEventListener('click', (event) => {
+                    if (event.target === modal) { 
+                        if (modal === addSentenceModal) closeAddSentenceModal();
+                        else if (modal === structureModal) closeStructureAnalysisModalPerSentence();
+                        else if (modal.id === 'translation-modal') closeTranslationTestModal();
+                        else if (modal.id === 'word-detail-modal') closeWordDetailModal();
+                    }
+                });
+            });
+        }
+        
+        // --- STARTUP ---
+        init();
+
+    })(); // End of IIFE
+    </script>
+</body>
+</html>
